@@ -148,7 +148,7 @@ export default function ContactsPage() {
             </div>
             <div className="flex flex-col gap-3">
               {filtered.map(contact => (
-                <div key={contact.id} className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4 flex items-center gap-4 hover:border-[#C8A96E33] transition-all cursor-pointer">
+                <div key={contact.id} onClick={() => router.push(`/contacts/${contact.id}`)} className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4 flex items-center gap-4 hover:border-[#C8A96E33] transition-all cursor-pointer">
                   <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
                     style={{ background: getColor(contact.full_name) }}>
                     {getInitials(contact.full_name)}

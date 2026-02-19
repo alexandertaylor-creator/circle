@@ -147,7 +147,7 @@ export default function NewContactPage() {
     });
     if (!error) {
       setSaved(true);
-      setTimeout(() => router.push("/contacts"), 1500);
+      setTimeout(() => router.push("/dashboard"), 1500);
     } else {
       alert("Something went wrong. Try again.");
       console.error(error);
@@ -172,7 +172,7 @@ export default function NewContactPage() {
   return (
     <main className="min-h-screen bg-[#141210] text-[#F0E6D3]">
       <header className="flex items-center justify-between px-6 py-5 border-b border-[#2E2924] sticky top-0 bg-[#141210] z-10">
-        <button onClick={() => router.push("/contacts")} className="text-sm text-[#7A7068] hover:text-[#F0E6D3] transition-colors">
+        <button onClick={() => router.push("/dashboard")} className="text-sm text-[#7A7068] hover:text-[#F0E6D3] transition-colors">
           Cancel
         </button>
         <span className="font-serif italic text-[#C8A96E] text-lg">Add friend</span>
