@@ -129,7 +129,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <button onClick={() => router.push("/contacts")}
+        <button onClick={() => router.push("/plan")}
           className="w-full bg-[#C8A96E] text-[#141210] rounded-2xl p-5 text-left hover:bg-[#D4B87E] transition-colors">
           <div className="text-xl mb-1">◈</div>
           <div className="font-semibold text-base">Plan something</div>
@@ -213,7 +213,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-[#141210] border-t border-[#2E2924] flex items-center justify-around px-6 py-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-[#141210] border-t border-[#2E2924] flex items-center justify-around px-4 py-4">
         <button onClick={() => router.push("/dashboard")} className="flex flex-col items-center gap-1">
           <span className="text-[#C8A96E] text-lg">⌂</span>
           <span className="text-xs text-[#C8A96E]">Home</span>
@@ -222,9 +222,13 @@ export default function DashboardPage() {
           <span className="text-[#7A7068] text-lg">◉</span>
           <span className="text-xs text-[#7A7068]">Groups</span>
         </button>
-        <button onClick={() => router.push("/contacts/new")}
+        <button onClick={() => router.push("/plan")}
           className="w-12 h-12 bg-[#C8A96E] rounded-full text-[#141210] text-2xl font-light flex items-center justify-center shadow-lg hover:bg-[#D4B87E] transition-colors">
           +
+        </button>
+        <button onClick={() => router.push("/events")} className="flex flex-col items-center gap-1">
+          <span className="text-[#7A7068] text-lg">◈</span>
+          <span className="text-xs text-[#7A7068]">Events</span>
         </button>
         <button onClick={() => router.push("/contacts")} className="flex flex-col items-center gap-1">
           <span className="text-[#7A7068] text-lg">◎</span>
