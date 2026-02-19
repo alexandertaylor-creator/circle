@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { BottomNav } from "@/components/BottomNav";
 
 type Contact = {
   id: string;
@@ -89,7 +90,7 @@ export default function ContactsPage() {
     <main className="min-h-screen bg-[#141210] text-[#F0E6D3] pb-24">
       <header className="flex items-center justify-between px-6 py-5 border-b border-[#2E2924] sticky top-0 bg-[#141210] z-10">
         <button onClick={() => router.push("/dashboard")} className="font-serif italic text-[#C8A96E] text-xl">circle</button>
-        <button className="w-8 h-8 rounded-full bg-[#C8A96E] text-[#141210] text-sm font-bold flex items-center justify-center">
+        <button onClick={() => router.push("/profile")} className="w-8 h-8 rounded-full bg-[#C8A96E] text-[#141210] text-sm font-bold flex items-center justify-center">
           A
         </button>
       </header>
@@ -178,28 +179,7 @@ export default function ContactsPage() {
         )}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-[#141210] border-t border-[#2E2924] flex items-center justify-around px-4 py-4">
-        <button onClick={() => router.push("/dashboard")} className="flex flex-col items-center gap-1">
-          <span className="text-[#7A7068] text-lg">⌂</span>
-          <span className="text-xs text-[#7A7068]">Home</span>
-        </button>
-        <button onClick={() => router.push("/groups")} className="flex flex-col items-center gap-1">
-          <span className="text-[#7A7068] text-lg">◉</span>
-          <span className="text-xs text-[#7A7068]">Groups</span>
-        </button>
-        <button onClick={() => router.push("/plan")}
-          className="w-12 h-12 bg-[#C8A96E] rounded-full text-[#141210] text-2xl font-light flex items-center justify-center shadow-lg hover:bg-[#D4B87E] transition-colors">
-          +
-        </button>
-        <button onClick={() => router.push("/events")} className="flex flex-col items-center gap-1">
-          <span className="text-[#7A7068] text-lg">◈</span>
-          <span className="text-xs text-[#7A7068]">Events</span>
-        </button>
-        <button onClick={() => router.push("/contacts")} className="flex flex-col items-center gap-1">
-          <span className="text-[#C8A96E] text-lg">◎</span>
-          <span className="text-xs text-[#C8A96E]">People</span>
-        </button>
-      </div>
+      <BottomNav />
     </main>
   );
 }

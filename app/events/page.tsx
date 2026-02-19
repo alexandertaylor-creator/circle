@@ -2,11 +2,13 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { BottomNav } from "@/components/BottomNav";
 
 type Event = {
   id: string;
   name: string;
   event_date: string | null;
+  event_time: string | null;
   contact_ids: string[] | null;
   message_draft: string | null;
   created_at: string;
@@ -24,6 +26,11 @@ export default function EventsPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editTime, setEditTime] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -55,6 +62,13 @@ export default function EventsPage() {
     return new Date(date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   };
 
+  const formatTime = (time: string | null) => {
+    if (!time || !time.trim()) return null;
+    const [h, m] = time.split(":").map(Number);
+    const d = new Date(1970, 0, 1, h, m);
+    return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  };
+
   const isUpcoming = (date: string | null) => {
     if (!date) return false;
     return new Date(date) >= new Date();
@@ -65,6 +79,30 @@ export default function EventsPage() {
 
   const repeatEvent = (event: Event) => {
     router.push(`/plan?name=${encodeURIComponent(event.name)}`);
+  };
+
+  const startEditing = (event: Event) => {
+    setEditingEventId(event.id);
+    setEditName(event.name);
+    setEditDate(event.event_date || "");
+    setEditTime(event.event_time || "");
+  };
+
+  const cancelEditing = () => {
+    setEditingEventId(null);
+  };
+
+  const saveEdit = async () => {
+    if (!editingEventId) return;
+    setSavingEdit(true);
+    await supabase.from("events").update({
+      name: editName,
+      event_date: editDate || null,
+      event_time: editTime || null,
+    }).eq("id", editingEventId);
+    setEvents(prev => prev.map(e => e.id === editingEventId ? { ...e, name: editName, event_date: editDate || null, event_time: editTime || null } : e));
+    setEditingEventId(null);
+    setSavingEdit(false);
   };
 
   const EventCard = ({ event }: { event: Event }) => {
@@ -83,6 +121,7 @@ export default function EventsPage() {
               <div className="font-semibold text-[#F0E6D3] text-sm">{event.name}</div>
               <div className="text-xs text-[#7A7068] mt-0.5">
                 {event.event_date ? formatDate(event.event_date) : new Date(event.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                {event.event_time ? ` at ${formatTime(event.event_time)}` : ""}
                 {" · "}{guestIds.length} {guestIds.length === 1 ? "person" : "people"}
               </div>
             </div>
@@ -107,47 +146,75 @@ export default function EventsPage() {
 
         {isOpen && (
           <div className="px-4 pb-4 border-t border-[#2E2924] pt-3 flex flex-col gap-3">
-            {/* Guest list */}
-            <div>
-              <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold mb-2">Guests</div>
-              <div className="flex flex-col gap-1.5">
-                {guests.map(c => (
-                  <button key={c.id} onClick={() => router.push(`/contacts/${c.id}`)}
-                    className="flex items-center gap-2 hover:opacity-70 transition-opacity">
-                    <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0"
-                      style={{ background: getColor(c.full_name) }}>
-                      {c.photo_url
-                        ? <img src={c.photo_url} alt={c.full_name} className="w-full h-full object-cover" />
-                        : <div className="w-full h-full flex items-center justify-center text-xs font-bold text-white">{getInitials(c.full_name)}</div>
-                      }
-                    </div>
-                    <span className="text-sm text-[#F0E6D3]">{c.full_name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Message */}
-            {event.message_draft && (
-              <div>
-                <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold mb-2">Message</div>
-                <div className="text-sm text-[#7A7068] leading-relaxed bg-[#231F1B] rounded-xl px-3 py-2">
-                  {event.message_draft}
+            {editingEventId === event.id ? (
+              <>
+                <div className="flex flex-col gap-2">
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={e => setEditName(e.target.value)}
+                    placeholder="Event name"
+                    className="w-full bg-[#231F1B] border border-[#2E2924] rounded-lg px-3 py-2 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors"
+                  />
+                  <input
+                    type="date"
+                    value={editDate}
+                    onChange={e => setEditDate(e.target.value)}
+                    className="w-full bg-[#231F1B] border border-[#2E2924] rounded-lg px-3 py-2 text-sm text-[#F0E6D3] outline-none focus:border-[#C8A96E] transition-colors"
+                  />
+                  <input
+                    type="time"
+                    value={editTime}
+                    onChange={e => setEditTime(e.target.value)}
+                    className="w-full bg-[#231F1B] border border-[#2E2924] rounded-lg px-3 py-2 text-sm text-[#F0E6D3] outline-none focus:border-[#C8A96E] transition-colors"
+                  />
                 </div>
-              </div>
-            )}
+                <div className="flex gap-2">
+                  <button onClick={saveEdit} disabled={savingEdit || !editName.trim()}
+                    className="flex-1 py-2 bg-[#C8A96E] text-[#141210] rounded-lg text-xs font-semibold hover:bg-[#D4B87E] transition-colors disabled:opacity-60">
+                    {savingEdit ? "Saving..." : "Save"}
+                  </button>
+                  <button onClick={cancelEditing} disabled={savingEdit}
+                    className="flex-1 py-2 border border-[#2E2924] text-[#7A7068] rounded-lg text-xs hover:text-[#F0E6D3] transition-colors">
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Guest list */}
+                <div>
+                  <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold mb-2">Guests</div>
+                  <div className="flex flex-col gap-1.5">
+                    {guests.map(c => (
+                      <button key={c.id} onClick={() => router.push(`/contacts/${c.id}`)}
+                        className="flex items-center gap-2 hover:opacity-70 transition-opacity">
+                        <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0"
+                          style={{ background: getColor(c.full_name) }}>
+                          {c.photo_url
+                            ? <img src={c.photo_url} alt={c.full_name} className="w-full h-full object-cover" />
+                            : <div className="w-full h-full flex items-center justify-center text-xs font-bold text-white">{getInitials(c.full_name)}</div>
+                          }
+                        </div>
+                        <span className="text-sm text-[#F0E6D3]">{c.full_name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-            {/* Actions */}
-            <div className="flex gap-2 pt-1">
-              <button onClick={() => navigator.clipboard.writeText(event.message_draft || "")}
-                className="flex-1 py-2 border border-[#2E2924] text-[#7A7068] rounded-lg text-xs hover:text-[#F0E6D3] transition-colors">
-                Copy message
-              </button>
-              <button onClick={() => repeatEvent(event)}
-                className="flex-1 py-2 bg-[#C8A96E] text-[#141210] rounded-lg text-xs font-semibold hover:bg-[#D4B87E] transition-colors">
-                Do this again
-              </button>
-            </div>
+                {/* Actions */}
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => startEditing(event)}
+                    className="flex-1 py-2 border border-[#2E2924] text-[#7A7068] rounded-lg text-xs hover:text-[#F0E6D3] transition-colors">
+                    Edit
+                  </button>
+                  <button onClick={() => repeatEvent(event)}
+                    className="flex-1 py-2 bg-[#C8A96E] text-[#141210] rounded-lg text-xs font-semibold hover:bg-[#D4B87E] transition-colors">
+                    Do this again
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -198,28 +265,7 @@ export default function EventsPage() {
         )}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-[#141210] border-t border-[#2E2924] flex items-center justify-around px-4 py-4">
-        <button onClick={() => router.push("/dashboard")} className="flex flex-col items-center gap-1">
-          <span className="text-[#7A7068] text-lg">⌂</span>
-          <span className="text-xs text-[#7A7068]">Home</span>
-        </button>
-        <button onClick={() => router.push("/groups")} className="flex flex-col items-center gap-1">
-          <span className="text-[#7A7068] text-lg">◉</span>
-          <span className="text-xs text-[#7A7068]">Groups</span>
-        </button>
-        <button onClick={() => router.push("/plan")}
-          className="w-12 h-12 bg-[#C8A96E] rounded-full text-[#141210] text-2xl font-light flex items-center justify-center shadow-lg">
-          +
-        </button>
-        <button onClick={() => router.push("/events")} className="flex flex-col items-center gap-1">
-          <span className="text-[#C8A96E] text-lg">◈</span>
-          <span className="text-xs text-[#C8A96E]">Events</span>
-        </button>
-        <button onClick={() => router.push("/contacts")} className="flex flex-col items-center gap-1">
-          <span className="text-[#7A7068] text-lg">◎</span>
-          <span className="text-xs text-[#7A7068]">People</span>
-        </button>
-      </div>
+      <BottomNav />
     </main>
   );
 }

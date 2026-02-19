@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { BottomNav } from "@/components/BottomNav";
 
 type Contact = {
   id: string;
@@ -19,6 +20,7 @@ export default function PlanPage() {
   const [step, setStep] = useState<Step>("name");
   const [eventName, setEventName] = useState("");
   const [eventDate, setEventDate] = useState("");
+  const [eventTime, setEventTime] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [allInterests, setAllInterests] = useState<string[]>([]);
   const [allGroups, setAllGroups] = useState<string[]>([]);
@@ -104,8 +106,8 @@ export default function PlanPage() {
       user_id: session.user.id,
       name: eventName,
       event_date: eventDate || null,
+      event_time: eventTime || null,
       contact_ids: selected,
-      message_draft: message,
     });
     setStep("done");
   };
@@ -189,6 +191,12 @@ export default function PlanPage() {
               type="date"
               value={eventDate}
               onChange={e => setEventDate(e.target.value)}
+              className="w-full bg-[#1C1916] border border-[#2E2924] rounded-xl px-4 py-3 text-sm text-[#F0E6D3] outline-none focus:border-[#C8A96E] transition-colors"
+            />
+            <input
+              type="time"
+              value={eventTime}
+              onChange={e => setEventTime(e.target.value)}
               className="w-full bg-[#1C1916] border border-[#2E2924] rounded-xl px-4 py-3 text-sm text-[#F0E6D3] outline-none focus:border-[#C8A96E] transition-colors"
             />
             <button onClick={() => setStep("filter")} disabled={!eventName.trim()}
@@ -324,28 +332,7 @@ export default function PlanPage() {
         )}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-[#141210] border-t border-[#2E2924] flex items-center justify-around px-4 py-4">
-        <button onClick={() => router.push("/dashboard")} className="flex flex-col items-center gap-1">
-          <span className="text-[#7A7068] text-lg">⌂</span>
-          <span className="text-xs text-[#7A7068]">Home</span>
-        </button>
-        <button onClick={() => router.push("/groups")} className="flex flex-col items-center gap-1">
-          <span className="text-[#7A7068] text-lg">◉</span>
-          <span className="text-xs text-[#7A7068]">Groups</span>
-        </button>
-        <button onClick={() => router.push("/plan")}
-          className="w-12 h-12 bg-[#C8A96E] rounded-full text-[#141210] text-2xl font-light flex items-center justify-center shadow-lg hover:bg-[#D4B87E] transition-colors">
-          +
-        </button>
-        <button onClick={() => router.push("/events")} className="flex flex-col items-center gap-1">
-          <span className="text-[#7A7068] text-lg">◈</span>
-          <span className="text-xs text-[#7A7068]">Events</span>
-        </button>
-        <button onClick={() => router.push("/contacts")} className="flex flex-col items-center gap-1">
-          <span className="text-[#7A7068] text-lg">◎</span>
-          <span className="text-xs text-[#7A7068]">People</span>
-        </button>
-      </div>
+      <BottomNav />
     </main>
   );
 }
