@@ -209,11 +209,15 @@ export default function DashboardPage() {
           <span className="text-[#C8A96E] text-lg">⌂</span>
           <span className="text-xs text-[#C8A96E]">Home</span>
         </button>
+        <button onClick={() => router.push("/groups")} className="flex flex-col items-center gap-1">
+          <span className="text-[#7A7068] text-lg">◉</span>
+          <span className="text-xs text-[#7A7068]">Groups</span>
+        </button>
         <button onClick={() => router.push("/contacts/new")}
           className="w-12 h-12 bg-[#C8A96E] rounded-full text-[#141210] text-2xl font-light flex items-center justify-center shadow-lg hover:bg-[#D4B87E] transition-colors">
           +
         </button>
-        <button onClick={() => router.push("/contacts")} className="flex flex-col items-cter gap-1">
+        <button onClick={() => router.push("/contacts")} className="flex flex-col items-center gap-1">
           <span className="text-[#7A7068] text-lg">◎</span>
           <span className="text-xs text-[#7A7068]">People</span>
         </button>
