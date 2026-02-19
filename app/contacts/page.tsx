@@ -7,29 +7,64 @@ type Contact = {
   id: string;
   full_name: string;
   last_contacted: string | null;
-  fields: Record<string, string | boolean | string[] | null>;
+  interests: string[] | null;
+  groups: string[] | null;
+};
+
+type FilterChip = {
+  label: string;
+  kind: "interest" | "group";
 };
 
 export default function ContactsPage() {
   const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [allInterests, setAllInterests] = useState<string[]>([]);
+  const [allGroups, setAllGroups] = useState<string[]>([]);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<string | null>(null);
+  const [activeFilters, setActiveFilters] = useState<FilterChip[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadContacts = async () => {
+    const load = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/auth"); return; }
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("contacts")
-        .select("id, full_name, last_contacted, fields")
+        .select("id, full_name, last_contacted, interests, groups")
         .order("full_name");
-      if (!error && data) setContacts(data);
+      if (data) {
+        setContacts(data);
+        setAllInterests(Array.from(new Set(data.flatMap(c => c.interests || []))).sort());
+        setAllGroups(Array.from(new Set(data.flatMap(c => c.groups || []))).sort());
+      }
       setLoading(false);
     };
-    loadContacts();
+    load();
   }, [router]);
+
+  const isActive = (chip: FilterChip) =>
+    activeFilters.some(f => f.kind === chip.kind && f.label === chip.label);
+
+  const toggleFilter = (chip: FilterChip) => {
+    if (isActive(chip)) {
+      setActiveFilters(prev => prev.filter(f => !(f.kind === chip.kind && f.label === chip.label)));
+    } else {
+      setActiveFilters(prev => [...prev, chip]);
+    }
+  };
+
+  const matchesFilters = (contact: Contact) => {
+    if (activeFilters.length === 0) return true;
+    return activeFilters.every(filter => {
+      if (filter.kind === "interest") return (contact.interests || []).includes(filter.label);
+      return (contact.groups || []).includes(filter.label);
+    });
+  };
+
+  const filtered = contacts.filter(c =>
+    c.full_name.toLowerCase().includes(search.toLowerCase()) && matchesFilters(c)
+  );
 
   const getInitials = (name: string) =>
     name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
@@ -45,15 +80,9 @@ export default function ContactsPage() {
     if (days === 0) return "Today";
     if (days === 1) return "Yesterday";
     if (days < 7) return `${days} days ago`;
-    if (days < 30) return `${Math.floor(days/7)} week${Math.floor(days/7)>1?"s":""} ago`;
-    return `${Math.floor(days/30)} month${Math.floor(days/30)>1?"s":""} ago`;
+    if (days < 30) return `${Math.floor(days / 7)} week${Math.floor(days / 7) > 1 ? "s" : ""} ago`;
+    return `${Math.floor(days / 30)} month${Math.floor(days / 30) > 1 ? "s" : ""} ago`;
   };
-
-  const filtered = contacts.filter(c => {
-    const matchesSearch = c.full_name.toLowerCase().includes(search.toLowerCase());
-    const matchesFilter = filter === "padel" ? c.fields["Plays padel"] === true : true;
-    return matchesSearch && matchesFilter;
-  });
 
   return (
     <main className="min-h-screen bg-[#141210] text-[#F0E6D3]">
@@ -71,14 +100,41 @@ export default function ContactsPage() {
           onChange={e => setSearch(e.target.value)}
           className="w-full bg-[#1C1916] border border-[#2E2924] rounded-xl px-4 py-3 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors mb-4"
         />
-        <div className="flex gap-2 mb-6">
-          <button
-            onClick={() => setFilter(filter === "padel" ? null : "padel")}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${filter === "padel" ? "border-[#C8A96E] text-[#C8A96E] bg-[#28211A]" : "border-[#2E2924] text-[#7A7068]"}`}
-          >
-            Plays padel
+
+        {allInterests.length > 0 && (
+          <div className="mb-3">
+            <div className="text-xs text-[#7A7068] uppercase tracking-widest mb-2 font-semibold">Interests</div>
+            <div className="flex flex-wrap gap-2">
+              {allInterests.map(tag => (
+                <button key={tag} onClick={() => toggleFilter({ label: tag, kind: "interest" })}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${isActive({ label: tag, kind: "interest" }) ? "border-[#C8A96E] text-[#C8A96E] bg-[#28211A]" : "border-[#2E2924] text-[#7A7068]"}`}>
+                  {tag}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {allGroups.length > 0 && (
+          <div className="mb-4">
+            <div className="text-xs text-[#7A7068] uppercase tracking-widest mb-2 font-semibold">Groups</div>
+            <div className="flex flex-wrap gap-2">
+              {allGroups.map(tag => (
+                <button key={tag} onClick={() => toggleFilter({ label: tag, kind: "group" })}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${isActive({ label: tag, kind: "group" }) ? "border-[#C8A96E] text-[#C8A96E] bg-[#28211A]" : "border-[#2E2924] text-[#7A7068]"}`}>
+                  {tag}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeFilters.length > 0 && (
+          <button onClick={() => setActiveFilters([])} className="text-xs text-[#7A7068] hover:text-[#F0E6D3] transition-colors mb-4 block">
+            Clear all filters
           </button>
-        </div>
+        )}
+
         {loading ? (
           <div className="text-center text-[#7A7068] text-sm py-12">Loading your people...</div>
         ) : filtered.length === 0 ? (
@@ -100,10 +156,16 @@ export default function ContactsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-[#F0E6D3] text-sm">{contact.full_name}</div>
                     <div className="text-xs text-[#7A7068] mt-0.5">Last seen {getLastSeen(contact.last_contacted)}</div>
+                    {contact.groups && contact.groups.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {contact.groups.map(g => (
+                          <span key={g} className="text-xs px-2 py-0.5 rounded-full bg-[#28211A] border border-[#C8A96E33] text-[#C8A96E88]">
+                            {g}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  {contact.fields["Plays padel"] && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-[#28211A] border border-[#C8A96E44] text-[#C8A96E]">padel</span>
-                  )}
                 </div>
               ))}
             </div>
