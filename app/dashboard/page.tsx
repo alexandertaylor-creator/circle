@@ -9,6 +9,7 @@ type Contact = {
   last_contacted: string | null;
   interests: string[] | null;
   groups: string[] | null;
+  photo_url: string | null;
 };
 
 export default function DashboardPage() {
@@ -26,7 +27,7 @@ export default function DashboardPage() {
       setUserName(session.user.email?.split("@")[0] || "friend");
       const { data } = await supabase
         .from("contacts")
-        .select("id, full_name, last_contacted, interests, groups")
+        .select("id, full_name, last_contacted, interests, groups, photo_url")
         .order("full_name");
       if (data) {
         setContacts(data);
@@ -107,10 +108,14 @@ export default function DashboardPage() {
             <div className="flex flex-col gap-2">
               {needsAttention.map(contact => (
                 <div key={contact.id} className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4 flex items-center gap-3 cursor-pointer hover:border-[#C8A96E33] transition-all">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
-                    style={{ background: getColor(contact.full_name) }}>
-                    {getInitials(contact.full_name)}
-                  </div>
+                  {contact.photo_url ? (
+                    <img src={contact.photo_url} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
+                      style={{ background: getColor(contact.full_name) }}>
+                      {getInitials(contact.full_name)}
+                    </div>
+                  )}
                   <div className="flex-1">
                     <div className="font-medium text-sm text-[#F0E6D3]">{contact.full_name}</div>
                     <div className="text-xs text-[#7A7068]">Last seen {getLastSeen(contact.last_contacted)}</div>
@@ -176,10 +181,14 @@ export default function DashboardPage() {
             <div className="flex flex-col gap-2">
               {recentlyAdded.map(contact => (
                 <div key={contact.id} className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4 flex items-center gap-3 cursor-pointer hover:border-[#C8A96E33] transition-all">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
-                    style={{ background: getColor(contact.full_name) }}>
-                    {getInitials(contact.full_name)}
-                  </div>
+                  {contact.photo_url ? (
+                    <img src={contact.photo_url} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
+                      style={{ background: getColor(contact.full_name) }}>
+                      {getInitials(contact.full_name)}
+                    </div>
+                  )}
                   <div className="flex-1">
                     <div className="font-medium text-sm text-[#F0E6D3]">{contact.full_name}</div>
                     {contact.groups && contact.groups.length > 0 && (

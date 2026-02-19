@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -11,6 +11,7 @@ type Contact = {
   interests: string[] | null;
   groups: string[] | null;
   created_at: string;
+  photo_url: string | null;
 };
 
 export default function ContactProfilePage({ params }: { params: Promise<{ id: string }> }) {
@@ -31,6 +32,8 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
   const [savingGroupsInterests, setSavingGroupsInterests] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -38,7 +41,7 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
       if (!session) { router.push("/auth"); return; }
       const { data } = await supabase
         .from("contacts")
-        .select("id, full_name, last_contacted, notes, interests, groups, created_at")
+        .select("id, full_name, last_contacted, notes, interests, groups, created_at, photo_url")
         .eq("id", id)
         .single();
       if (data) {
@@ -111,6 +114,28 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
     setDeleting(true);
     await supabase.from("contacts").delete().eq("id", contact.id);
     router.push("/dashboard");
+  };
+
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !contact) return;
+    e.target.value = "";
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    setUploadingPhoto(true);
+    const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const path = `${session.user.id}/${contact.id}/avatar.${ext}`;
+    const { error: uploadError } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
+    if (uploadError) {
+      setUploadingPhoto(false);
+      console.error(uploadError);
+      return;
+    }
+    const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
+    const photoUrl = urlData.publicUrl;
+    await supabase.from("contacts").update({ photo_url: photoUrl }).eq("id", contact.id);
+    setContact(prev => prev ? { ...prev, photo_url: photoUrl } : null);
+    setUploadingPhoto(false);
   };
 
   const getInitials = (name: string) =>
@@ -195,10 +220,42 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
 
         {/* Avatar + name */}
         <div className="flex flex-col items-center gap-4 py-4">
-          <div className="w-24 h-24 rounded-full flex items-center justify-center text-2xl font-bold text-white"
-            style={{ background: getColor(contact.full_name) }}>
-            {getInitials(contact.full_name)}
-          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handlePhotoSelect}
+          />
+          <button
+            type="button"
+            onClick={(e) => {
+              const input = fileInputRef.current;
+              if (input) input.click();
+            }}
+            disabled={uploadingPhoto}
+            className="relative w-24 h-24 rounded-full flex items-center justify-center text-2xl font-bold text-white flex-shrink-0 overflow-hidden border-2 border-[#2E2924] hover:border-[#C8A96E44] transition-colors disabled:opacity-70"
+            style={{ background: contact.photo_url ? "transparent" : getColor(contact.full_name) }}
+          >
+            {uploadingPhoto ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-[#141210]/80">
+                <span className="text-[#C8A96E] text-sm">...</span>
+              </div>
+            ) : contact.photo_url ? (
+              <img src={contact.photo_url} alt="" className="w-full h-full object-cover" />
+            ) : (
+              getInitials(contact.full_name)
+            )}
+            {!uploadingPhoto && (
+              <div className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-[#141210] border border-[#2E2924] flex items-center justify-center">
+                <svg className="w-4 h-4 text-[#C8A96E]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 13v4a2 2 0 01-2 2H7a2 2 0 01-2-2v-4M14 12v.01" />
+                </svg>
+              </div>
+            )}
+          </button>
           <div className="text-center">
             <div className="font-serif text-2xl text-[#F0E6D3]">{contact.full_name}</div>
             <div className="text-sm text-[#7A7068] mt-1">Last seen {getLastSeen(contact.last_contacted)}</div>
