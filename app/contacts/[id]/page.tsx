@@ -29,6 +29,8 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
   const [allGroups, setAllGroups] = useState<string[]>([]);
   const [allInterests, setAllInterests] = useState<string[]>([]);
   const [savingGroupsInterests, setSavingGroupsInterests] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -104,6 +106,13 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
     setSavingGroupsInterests(false);
   };
 
+  const deleteContact = async () => {
+    if (!contact) return;
+    setDeleting(true);
+    await supabase.from("contacts").delete().eq("id", contact.id);
+    router.push("/dashboard");
+  };
+
   const getInitials = (name: string) =>
     name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
 
@@ -166,7 +175,7 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
         >
           {editMode ? "Cancel" : "Back"}
         </button>
-        <span className="font-serif italic text-[#C8A96E] text-lg">circle</span>
+        <button onClick={() => router.push("/dashboard")} className="font-serif italic text-[#C8A96E] text-lg">circle</button>
         {editMode ? (
           <button
             onClick={saveGroupsInterests}
@@ -340,6 +349,38 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
         {/* Added date */}
         <div className="text-center text-xs text-[#3A3530]">
           Added {new Date(contact.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+        </div>
+
+        {/* Delete contact */}
+        <div className="pt-4">
+          {!showDeleteConfirm ? (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="w-full py-3 border border-[#6B4A4A] text-[#A67A7A] rounded-xl text-sm font-medium hover:bg-[#2E2222] hover:border-[#8B5A5A] transition-colors"
+            >
+              Delete contact
+            </button>
+          ) : (
+            <div className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4 flex flex-col gap-3">
+              <p className="text-sm text-[#F0E6D3]">Are you sure? This can&apos;t be undone.</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={deleteContact}
+                  disabled={deleting}
+                  className="flex-1 py-2 bg-[#8B4545] text-white rounded-lg text-sm font-semibold hover:bg-[#A05555] transition-colors disabled:opacity-60"
+                >
+                  {deleting ? "Deleting..." : "Confirm delete"}
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={deleting}
+                  className="flex-1 py-2 border border-[#2E2924] text-[#7A7068] rounded-lg text-sm hover:text-[#F0E6D3] transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </main>

@@ -87,7 +87,7 @@ export default function ContactsPage() {
   return (
     <main className="min-h-screen bg-[#141210] text-[#F0E6D3]">
       <header className="flex items-center justify-between px-6 py-5 border-b border-[#2E2924] sticky top-0 bg-[#141210] z-10">
-        <span className="font-serif italic text-[#C8A96E] text-xl">circle</span>
+        <button onClick={() => router.push("/dashboard")} className="font-serif italic text-[#C8A96E] text-xl">circle</button>
         <button className="w-8 h-8 rounded-full bg-[#C8A96E] text-[#141210] text-sm font-bold flex items-center justify-center">
           A
         </button>
