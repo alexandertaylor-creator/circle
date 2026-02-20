@@ -70,6 +70,9 @@ function TagInput({
 export default function NewContactPage() {
   const router = useRouter();
   const [name, setName] = useState("");
+  const [dob, setDob] = useState("");
+  const [phone, setPhone] = useState("");
+  const [notes, setNotes] = useState("");
   const [interests, setInterests] = useState<string[]>([]);
   const [groups, setGroups] = useState<string[]>([]);
   const [interestInput, setInterestInput] = useState("");
@@ -78,16 +81,25 @@ export default function NewContactPage() {
   const [groupSuggestions, setGroupSuggestions] = useState<string[]>([]);
   const [allInterests, setAllInterests] = useState<string[]>([]);
   const [allGroups, setAllGroups] = useState<string[]>([]);
+  const [userAvatarUrl, setUserAvatarUrl] = useState("");
+  const [userDisplayName, setUserDisplayName] = useState("");
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         setUserId(session.user.id);
         setChecking(false);
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("avatar_url, display_name")
+          .eq("id", session.user.id)
+          .single();
+        if (profile?.avatar_url) setUserAvatarUrl(profile.avatar_url);
+        if (profile?.display_name) setUserDisplayName(profile.display_name);
         loadExisting();
       } else {
         router.push("/auth");
@@ -96,7 +108,7 @@ export default function NewContactPage() {
   }, [router]);
 
   const loadExisting = async () => {
-    const { data } = await supabase.from("contacts").select("interests, groups");
+    const { data } = await supabase.from("contacts").select("interests, groups").limit(1000);
     if (data) {
       const allI = Array.from(new Set(data.flatMap(c => c.interests || []))).sort();
       const allG = Array.from(new Set(data.flatMap(c => c.groups || []))).sort();
@@ -141,9 +153,11 @@ export default function NewContactPage() {
     const { error } = await supabase.from("contacts").insert({
       user_id: userId,
       full_name: name,
+      dob: dob || null,
+      phone: phone.trim() || null,
+      notes: notes.trim() || null,
       interests,
       groups,
-      fields: {},
     });
     if (!error) {
       setSaved(true);
@@ -176,8 +190,12 @@ export default function NewContactPage() {
           Cancel
         </button>
         <span className="font-serif italic text-[#C8A96E] text-lg">Add friend</span>
-        <button onClick={handleSave} disabled={!name.trim() || loading} className="text-sm font-semibold text-[#C8A96E] disabled:text-[#7A7068] transition-colors">
-          {loading ? "Saving..." : "Save"}
+        <button onClick={() => router.push("/profile")} className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#C8A96E] text-[#141210] text-sm font-bold">
+          {userAvatarUrl ? (
+            <img src={userAvatarUrl} alt="" className="w-full h-full object-cover" />
+          ) : (
+            (userDisplayName || "?")[0].toUpperCase()
+          )}
         </button>
       </header>
       <div className="max-w-lg mx-auto px-4 py-6 flex flex-col gap-4">
@@ -189,6 +207,35 @@ export default function NewContactPage() {
           autoFocus
           className="w-full bg-[#1C1916] border border-[#2E2924] rounded-xl px-4 py-3 text-base text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors font-medium"
         />
+        <div>
+          <label className="text-xs text-[#7A7068] mb-2 block font-medium">Date of birth</label>
+          <input
+            type="date"
+            value={dob}
+            onChange={e => setDob(e.target.value)}
+            className="w-full bg-[#1C1916] border border-[#2E2924] rounded-xl px-4 py-3 text-sm text-[#F0E6D3] outline-none focus:border-[#C8A96E] transition-colors"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-[#7A7068] mb-2 block font-medium">Phone number</label>
+          <input
+            type="tel"
+            placeholder="e.g. +1 555 123 4567"
+            value={phone}
+            onChange={e => setPhone(e.target.value)}
+            className="w-full bg-[#1C1916] border border-[#2E2924] rounded-xl px-4 py-3 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-[#7A7068] mb-2 block font-medium">Notes</label>
+          <textarea
+            placeholder="Any notes about this person..."
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            rows={3}
+            className="w-full bg-[#1C1916] border border-[#2E2924] rounded-xl px-4 py-3 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors resize-none"
+          />
+        </div>
         <TagInput
           label="Interests"
           placeholder='e.g. padel, rockets, golf...'

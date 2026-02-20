@@ -20,28 +20,42 @@ export default function DashboardPage() {
   const [allGroups, setAllGroups] = useState<string[]>([]);
   const [userName, setUserName] = useState("");
   const [userAvatarUrl, setUserAvatarUrl] = useState("");
+  const [topFriends, setTopFriends] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/auth"); return; }
-      setUserName(session.user.email?.split("@")[0] || "friend");
       const { data: profile } = await supabase
         .from("profiles")
         .select("display_name, avatar_url")
         .eq("id", session.user.id)
         .single();
+      setUserName(profile?.display_name ?? session.user.email?.split("@")[0] ?? "friend");
       if (profile?.avatar_url) setUserAvatarUrl(profile.avatar_url);
-      if (profile?.display_name) setUserName(profile.display_name);
       const { data } = await supabase
         .from("contacts")
         .select("id, full_name, last_contacted, interests, groups, photo_url")
-        .order("full_name");
+        .order("full_name")
+        .limit(1000);
+      const { data: interactions } = await supabase
+        .from("interactions")
+        .select("contact_id")
+        .limit(10000);
       if (data) {
         setContacts(data);
         setAllInterests(Array.from(new Set(data.flatMap(c => c.interests || []))).sort());
         setAllGroups(Array.from(new Set(data.flatMap(c => c.groups || []))).sort());
+        const countByContact = (interactions || []).reduce((acc, r) => {
+          acc[r.contact_id] = (acc[r.contact_id] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        const topIds = Object.entries(countByContact)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .map(([id]) => id);
+        setTopFriends(topIds.map(id => data.find(c => c.id === id)).filter(Boolean) as Contact[]);
       }
       setLoading(false);
     };
@@ -82,8 +96,6 @@ export default function DashboardPage() {
     .sort((a, b) => getDaysSince(b.last_contacted) - getDaysSince(a.last_contacted))
     .slice(0, 3);
 
-  const recentlyAdded = contacts.slice(-3).reverse();
-
   if (loading) return (
     <main className="min-h-screen bg-[#141210] flex items-center justify-center">
       <div className="font-serif italic text-[#C8A96E] text-2xl">circle</div>
@@ -106,7 +118,7 @@ export default function DashboardPage() {
       <div className="max-w-lg mx-auto px-4 py-6 flex flex-col gap-8">
 
         <div>
-          <div className="text-[#7A7068] text-sm mb-1">{getGreeting()},</div>
+          <div className="text-[#7A7068] text-sm mb-1">{getGreeting()}, {userName}.</div>
           <div className="font-serif text-3xl text-[#F0E6D3]">
             {contacts.length === 0 ? "Welcome to circle." : `Your circle has ${contacts.length} ${contacts.length === 1 ? "person" : "people"}.`}
           </div>
@@ -120,7 +132,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex flex-col gap-2">
               {needsAttention.map(contact => (
-                <div key={contact.id} className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4 flex items-center gap-3 cursor-pointer hover:border-[#C8A96E33] transition-all">
+                <div key={contact.id} onClick={() => router.push(`/contacts/${contact.id}`)} className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4 flex items-center gap-3 cursor-pointer hover:border-[#C8A96E33] transition-all">
                   {contact.photo_url ? (
                     <img src={contact.photo_url} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
                   ) : (
@@ -132,9 +144,6 @@ export default function DashboardPage() {
                   <div className="flex-1">
                     <div className="font-medium text-sm text-[#F0E6D3]">{contact.full_name}</div>
                     <div className="text-xs text-[#7A7068]">Last seen {getLastSeen(contact.last_contacted)}</div>
-                  </div>
-                  <div className="text-xs px-2 py-1 rounded-full border border-[#C8A96E33] text-[#C8A96E]">
-                    Reach out
                   </div>
                 </div>
               ))}
@@ -156,8 +165,8 @@ export default function DashboardPage() {
               {allGroups.map(group => {
                 const count = contacts.filter(c => (c.groups || []).includes(group)).length;
                 return (
-                  <button key={group} onClick={() => router.push(`/contacts?group=${group}`)}
-                    className="bg-[#1C1916] border border-[#2E2924] unded-2xl p-4 text-left hover:border-[#C8A96E33] transition-all">
+                  <button key={group} onClick={() => router.push(`/groups/${encodeURIComponent(group)}`)}
+                    className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4 text-left hover:border-[#C8A96E33] transition-all">
                     <div className="font-medium text-sm text-[#F0E6D3] capitalize mb-1">{group}</div>
                     <div className="text-xs text-[#7A7068]">{count} {count === 1 ? "person" : "people"}</div>
                   </button>
@@ -174,7 +183,7 @@ export default function DashboardPage() {
               {allInterests.map(interest => {
                 const count = contacts.filter(c => (c.interests || []).includes(interest)).length;
                 return (
-                  <button key={interest} onClick={() => router.push(`/contacts?interest=${interest}`)}
+                  <button key={interest} onClick={() => router.push(`/contacts?interest=${encodeURIComponent(interest)}`)}
                     className="bg-[#1C1916] border border-[#2E2924] rounded-2xl px-4 py-3 hover:border-[#C8A96E33] transition-all flex items-center gap-2">
                     <span className="text-sm text-[#F0E6D3] capitalize">{interest}</span>
                     <span className="text-xs text-[#7A7068]">{count}</span>
@@ -185,15 +194,15 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {recentlyAdded.length > 0 && (
+        {topFriends.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-3">
-              <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold">Recently added</div>
+              <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold">Top friends</div>
               <button onClick={() => router.push("/contacts")} className="text-xs text-[#C8A96E]">See all</button>
             </div>
             <div className="flex flex-col gap-2">
-              {recentlyAdded.map(contact => (
-                <div key={contact.id} className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4 flex items-center gap-3 cursor-pointer hover:border-[#C8A96E33] transition-all">
+              {topFriends.map(contact => (
+                <div key={contact.id} onClick={() => router.push(`/contacts/${contact.id}`)} className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4 flex items-center gap-3 cursor-pointer hover:border-[#C8A96E33] transition-all">
                   {contact.photo_url ? (
                     <img src={contact.photo_url} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
                   ) : (

@@ -24,6 +24,8 @@ export default function EventsPage() {
   const router = useRouter();
   const [events, setEvents] = useState<Event[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [userAvatarUrl, setUserAvatarUrl] = useState("");
+  const [userDisplayName, setUserDisplayName] = useState("");
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
@@ -36,9 +38,16 @@ export default function EventsPage() {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/auth"); return; }
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("avatar_url, display_name")
+        .eq("id", session.user.id)
+        .single();
+      if (profile?.avatar_url) setUserAvatarUrl(profile.avatar_url);
+      if (profile?.display_name) setUserDisplayName(profile.display_name);
       const [{ data: events }, { data: contacts }] = await Promise.all([
         supabase.from("events").select("*").order("created_at", { ascending: false }),
-        supabase.from("contacts").select("id, full_name, photo_url"),
+        supabase.from("contacts").select("id, full_name, photo_url").limit(1000),
       ]);
       if (events) setEvents(events);
       if (contacts) setContacts(contacts);
@@ -226,9 +235,18 @@ export default function EventsPage() {
       <header className="flex items-center justify-between px-6 py-5 border-b border-[#2E2924] sticky top-0 bg-[#141210] z-10">
         <button onClick={() => router.push("/dashboard")} className="font-serif italic text-[#C8A96E] text-xl">circle</button>
         <span className="text-sm text-[#7A7068]">Events</span>
-        <button onClick={() => router.push("/plan")} className="text-sm text-[#C8A96E] hover:text-[#D4B87E] transition-colors">
-          + Plan
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => router.push("/plan")} className="text-sm text-[#C8A96E] hover:text-[#D4B87E] transition-colors">
+            Plan
+          </button>
+          <button onClick={() => router.push("/profile")} className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#C8A96E] text-[#141210] text-sm font-bold">
+            {userAvatarUrl ? (
+              <img src={userAvatarUrl} alt="" className="w-full h-full object-cover" />
+            ) : (
+              (userDisplayName || "?")[0].toUpperCase()
+            )}
+          </button>
+        </div>
       </header>
 
       <div className="max-w-lg mx-auto px-4 py-6 flex flex-col gap-6">

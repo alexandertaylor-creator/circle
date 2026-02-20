@@ -1,8 +1,10 @@
 "use client";
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { BottomNav } from "@/components/BottomNav";
+
+const PAGE_SIZE = 50;
 
 type Contact = {
   id: string;
@@ -20,23 +22,48 @@ type FilterChip = {
 
 export default function ContactsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [userAvatarUrl, setUserAvatarUrl] = useState("");
+  const [userDisplayName, setUserDisplayName] = useState("");
   const [allInterests, setAllInterests] = useState<string[]>([]);
   const [allGroups, setAllGroups] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [activeFilters, setActiveFilters] = useState<FilterChip[]>([]);
   const [loading, setLoading] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const loadingMoreTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const appliedUrlParamsRef = useRef(false);
 
   useEffect(() => {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/auth"); return; }
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("avatar_url, display_name")
+        .eq("id", session.user.id)
+        .single();
+      if (profile?.avatar_url) setUserAvatarUrl(profile.avatar_url);
+      if (profile?.display_name) setUserDisplayName(profile.display_name);
       const { data } = await supabase
         .from("contacts")
         .select("id, full_name, last_contacted, interests, groups, photo_url")
-        .order("full_name");
+        .order("full_name")
+        .limit(1000);
+      const { data: interactions } = await supabase
+        .from("interactions")
+        .select("contact_id")
+        .limit(10000);
       if (data) {
-        setContacts(data);
+        const countByContact = (interactions || []).reduce((acc, r) => {
+          acc[r.contact_id] = (acc[r.contact_id] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        const sorted = [...data].sort((a, b) => (countByContact[b.id] || 0) - (countByContact[a.id] || 0));
+        setContacts(sorted);
         setAllInterests(Array.from(new Set(data.flatMap(c => c.interests || []))).sort());
         setAllGroups(Array.from(new Set(data.flatMap(c => c.groups || []))).sort());
       }
@@ -45,16 +72,23 @@ export default function ContactsPage() {
     load();
   }, [router]);
 
-  const isActive = (chip: FilterChip) =>
-    activeFilters.some(f => f.kind === chip.kind && f.label === chip.label);
+  // Apply interest= and group= from URL once on load so the filter chips are pre-selected
+  useEffect(() => {
+    if (appliedUrlParamsRef.current || contacts.length === 0) return;
+    const interest = searchParams.get("interest");
+    const group = searchParams.get("group");
+    if (!interest && !group) return;
+    appliedUrlParamsRef.current = true;
+    const next: FilterChip[] = [];
+    if (interest) next.push({ label: decodeURIComponent(interest), kind: "interest" });
+    if (group) next.push({ label: decodeURIComponent(group), kind: "group" });
+    if (next.length > 0) setActiveFilters(next);
+  }, [searchParams, contacts.length]);
 
-  const toggleFilter = (chip: FilterChip) => {
-    if (isActive(chip)) {
-      setActiveFilters(prev => prev.filter(f => !(f.kind === chip.kind && f.label === chip.label)));
-    } else {
-      setActiveFilters(prev => [...prev, chip]);
-    }
-  };
+  // Reset visible count when search or filters change so infinite scroll starts from top
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [search, activeFilters]);
 
   const matchesFilters = (contact: Contact) => {
     if (activeFilters.length === 0) return true;
@@ -67,6 +101,46 @@ export default function ContactsPage() {
   const filtered = contacts.filter(c =>
     c.full_name.toLowerCase().includes(search.toLowerCase()) && matchesFilters(c)
   );
+  const visibleContacts = filtered.slice(0, visibleCount);
+  const hasMore = visibleCount < filtered.length;
+
+  const loadMore = useCallback(() => {
+    if (!hasMore || loadingMore) return;
+    if (loadingMoreTimeoutRef.current) clearTimeout(loadingMoreTimeoutRef.current);
+    setLoadingMore(true);
+    setVisibleCount(prev => Math.min(prev + PAGE_SIZE, filtered.length));
+    loadingMoreTimeoutRef.current = setTimeout(() => {
+      setLoadingMore(false);
+      loadingMoreTimeoutRef.current = null;
+    }, 300);
+  }, [hasMore, loadingMore, filtered.length]);
+
+  useEffect(() => {
+    const el = loadMoreRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasMore && !loadingMore) loadMore();
+      },
+      { rootMargin: "100px", threshold: 0 }
+    );
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      if (loadingMoreTimeoutRef.current) clearTimeout(loadingMoreTimeoutRef.current);
+    };
+  }, [loadMore, hasMore, loadingMore]);
+
+  const isActive = (chip: FilterChip) =>
+    activeFilters.some(f => f.kind === chip.kind && f.label === chip.label);
+
+  const toggleFilter = (chip: FilterChip) => {
+    if (isActive(chip)) {
+      setActiveFilters(prev => prev.filter(f => !(f.kind === chip.kind && f.label === chip.label)));
+    } else {
+      setActiveFilters(prev => [...prev, chip]);
+    }
+  };
 
   const getInitials = (name: string) =>
     name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
@@ -90,8 +164,12 @@ export default function ContactsPage() {
     <main className="min-h-screen bg-[#141210] text-[#F0E6D3] pb-24">
       <header className="flex items-center justify-between px-6 py-5 border-b border-[#2E2924] sticky top-0 bg-[#141210] z-10">
         <button onClick={() => router.push("/dashboard")} className="font-serif italic text-[#C8A96E] text-xl">circle</button>
-        <button onClick={() => router.push("/profile")} className="w-8 h-8 rounded-full bg-[#C8A96E] text-[#141210] text-sm font-bold flex items-center justify-center">
-          A
+        <button onClick={() => router.push("/profile")} className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#C8A96E] text-[#141210] text-sm font-bold">
+          {userAvatarUrl ? (
+            <img src={userAvatarUrl} alt="" className="w-full h-full object-cover" />
+          ) : (
+            (userDisplayName || "?")[0].toUpperCase()
+          )}
         </button>
       </header>
       <div className="max-w-lg mx-auto px-4 py-6">
@@ -132,9 +210,17 @@ export default function ContactsPage() {
         )}
 
         {activeFilters.length > 0 && (
-          <button onClick={() => setActiveFilters([])} className="text-xs text-[#7A7068] hover:text-[#F0E6D3] transition-colors mb-4 block">
-            Clear all filters
-          </button>
+          <div className="flex items-center gap-3 mb-4 flex-wrap">
+            <button onClick={() => setActiveFilters([])} className="text-xs text-[#7A7068] hover:text-[#F0E6D3] transition-colors">
+              Clear all filters
+            </button>
+            <button
+              onClick={() => router.push(`/plan?contactIds=${filtered.map(c => c.id).join(",")}`)}
+              className="text-xs font-semibold text-[#C8A96E] hover:text-[#D4B87E] transition-colors"
+            >
+              Plan event
+            </button>
+          </div>
         )}
 
         {loading ? (
@@ -149,7 +235,7 @@ export default function ContactsPage() {
               {filtered.length} {filtered.length === 1 ? "person" : "people"}
             </div>
             <div className="flex flex-col gap-3">
-              {filtered.map(contact => (
+              {visibleContacts.map(contact => (
                 <div key={contact.id} onClick={() => router.push(`/contacts/${contact.id}`)} className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4 flex items-center gap-4 hover:border-[#C8A96E33] transition-all cursor-pointer">
                   {contact.photo_url ? (
                     <img src={contact.photo_url} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
@@ -174,6 +260,10 @@ export default function ContactsPage() {
                   </div>
                 </div>
               ))}
+              {hasMore && <div ref={loadMoreRef} className="h-4 min-h-4" aria-hidden />}
+              {loadingMore && (
+                <div className="text-center text-[#7A7068] text-xs py-3">Loading more...</div>
+              )}
             </div>
           </>
         )}

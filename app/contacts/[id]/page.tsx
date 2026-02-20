@@ -48,7 +48,7 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
         setContact(data);
         setNotes(data.notes || "");
       }
-      const { data: allData } = await supabase.from("contacts").select("interests, groups");
+      const { data: allData } = await supabase.from("contacts").select("interests, groups").limit(1000);
       if (allData) {
         setAllGroups(Array.from(new Set(allData.flatMap(c => c.groups || []))).sort());
         setAllInterests(Array.from(new Set(allData.flatMap(c => c.interests || []))).sort());

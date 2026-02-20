@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { BottomNav } from "@/components/BottomNav";
 
@@ -16,20 +16,35 @@ export default function GroupDetailPage({ params }: { params: Promise<{ name: st
   const { name } = React.use(params);
   const groupName = decodeURIComponent(name);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [members, setMembers] = useState<Contact[]>([]);
   const [allContacts, setAllContacts] = useState<Contact[]>([]);
+  const [userAvatarUrl, setUserAvatarUrl] = useState("");
+  const [userDisplayName, setUserDisplayName] = useState("");
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
+    if (searchParams.get("adding") === "1") setAdding(true);
+  }, [searchParams]);
+
+  useEffect(() => {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/auth"); return; }
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("avatar_url, display_name")
+        .eq("id", session.user.id)
+        .single();
+      if (profile?.avatar_url) setUserAvatarUrl(profile.avatar_url);
+      if (profile?.display_name) setUserDisplayName(profile.display_name);
       const { data } = await supabase
         .from("contacts")
         .select("id, full_name, last_contacted, groups, interests")
-        .order("full_name");
+        .order("full_name")
+        .limit(1000);
       if (data) {
         setAllContacts(data);
         setMembers(data.filter(c => (c.groups || []).includes(groupName)));
@@ -90,9 +105,18 @@ export default function GroupDetailPage({ params }: { params: Promise<{ name: st
           Back
         </button>
         <span className="font-serif italic text-[#C8A96E] text-lg capitalize">{groupName}</span>
-        <button onClick={() => setAdding(!adding)} className="text-sm text-[#C8A96E] hover:text-[#D4B87E] transition-colors">
-          {adding ? "Done" : "Edit"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setAdding(!adding)} className="text-sm text-[#C8A96E] hover:text-[#D4B87E] transition-colors">
+            {adding ? "Done" : "Edit"}
+          </button>
+          <button onClick={() => router.push("/profile")} className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#C8A96E] text-[#141210] text-sm font-bold">
+            {userAvatarUrl ? (
+              <img src={userAvatarUrl} alt="" className="w-full h-full object-cover" />
+            ) : (
+              (userDisplayName || "?")[0].toUpperCase()
+            )}
+          </button>
+        </div>
       </header>
 
       <div className="max-w-lg mx-auto px-4 py-6 flex flex-col gap-4">
@@ -101,7 +125,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ name: st
           <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold">
             {members.length} {members.length === 1 ? "person" : "people"}
           </div>
-          <button onClick={() => router.push(`/contacts?group=${encodeURIComponent(groupName)}`)}
+          <button onClick={() => router.push("/plan")}
             className="text-xs text-[#C8A96E] hover:text-[#D4B87E] transition-colors">
             Plan something
           </button>
@@ -141,7 +165,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ name: st
               className="w-full bg-[#1C1916] border border-[#2E2924] rounded-xl px-4 py-3 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors mb-3"
             />
             <div className="flex flex-col gap-2">
-              {nonMembers.slice(0, 8).map(contact => (
+              {nonMembers.map(contact => (
                 <div key={contact.id}
                   className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-3 flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"

@@ -26,26 +26,6 @@ export function BottomNav() {
   const isEvents = pathname === "/events";
   const isPeople = pathname === "/contacts" || pathname?.startsWith("/contacts/");
 
-  const handleAddFriend = () => {
-    setMenuOpen(false);
-    router.push("/contacts/new");
-  };
-  const handlePlanEvent = () => {
-    setMenuOpen(false);
-    router.push("/plan");
-  };
-  const handleCreateGroup = () => {
-    setMenuOpen(false);
-    setShowCreateGroupModal(true);
-  };
-  const handleConfirmCreateGroup = () => {
-    const name = newGroupName.trim();
-    if (!name) return;
-    router.push(`/groups/${encodeURIComponent(name)}`);
-    setShowCreateGroupModal(false);
-    setNewGroupName("");
-  };
-
   return (
     <>
       <div className="fixed bottom-0 left-0 right-0 bg-[#141210] border-t border-[#2E2924] flex items-center justify-around px-4 py-4">
@@ -61,7 +41,7 @@ export function BottomNav() {
           <button
             type="button"
             onClick={() => setMenuOpen((prev) => !prev)}
-            className="w-12 h-12 bg-[#C8A96E] rounded-full text-[#141210] text-2xl font-light flex items-center justify-center shadow-lg hover:bg-[#D4B87E] transition-colors"
+            className="w-112 bg-[#C8A96E] rounded-full text-[#141210] text-2xl font-light flex items-center justify-center shadow-lg hover:bg-[#D4B87E] transition-colors"
           >
             +
           </button>
@@ -69,7 +49,7 @@ export function BottomNav() {
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-[#1C1916] border border-[#2E2924] rounded-2xl shadow-lg overflow-hidden z-50">
               <button
                 type="button"
-                onClick={handleAddFriend}
+                onClick={() => { setMenuOpen(false); router.push("/contacts/new"); }}
                 className="w-full flex items-center gap-3 px-4 py-3 text-left text-[#F0E6D3] text-sm hover:bg-[#231F1B] transition-colors"
               >
                 <span className="text-[#C8A96E] text-base">◎</span>
@@ -77,15 +57,15 @@ export function BottomNav() {
               </button>
               <button
                 type="button"
-                onClick={handlePlanEvent}
-                className="w-full flex items-center gap-3 px-4 py-3 text-left text-[#F0E6D3] text-sm hover:bg-[#231F1B] transition-colors"
+                onClick={() => { setMenuOpen(false); router.push("/plan"); }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left text-[#F0E6D3] te-sm hover:bg-[#231F1B] transition-colors"
               >
                 <span className="text-[#C8A96E] text-base">◈</span>
                 Plan event
               </button>
               <button
                 type="button"
-                onClick={handleCreateGroup}
+                onClick={() => { setMenuOpen(false); setShowCreateGroupModal(true); }}
                 className="w-full flex items-center gap-3 px-4 py-3 text-left text-[#F0E6D3] text-sm hover:bg-[#231F1B] transition-colors"
               >
                 <span className="text-[#C8A96E] text-base">◉</span>
@@ -107,10 +87,7 @@ export function BottomNav() {
       {showCreateGroupModal && (
         <div
           className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4"
-          onClick={() => {
-            setShowCreateGroupModal(false);
-            setNewGroupName("");
-          }}
+          onClick={() => { setShowCreateGroupModal(false); setNewGroupName(""); }}
         >
           <div
             className="w-full max-w-sm bg-[#1C1916] border border-[#2E2924] rounded-2xl shadow-lg p-4"
@@ -122,25 +99,28 @@ export function BottomNav() {
               value={newGroupName}
               onChange={(e) => setNewGroupName(e.target.value)}
               placeholder="Group name"
-              className="w-full bg-[#231F1B] border border-[#2E2924] rounded-xl px-4 py-3 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors mb-4"
+              className="w-full bg-[#231F] border border-[#2E2924] rounded-xl px-4 py-3 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors mb-3"
               autoFocus
             />
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  setShowCreateGroupModal(false);
-                  setNewGroupName("");
-                }}
+                onClick={() => { setShowCreateGroupModal(false); setNewGroupName(""); }}
                 className="flex-1 py-2 border border-[#2E2924] text-[#7A7068] rounded-lg text-sm hover:text-[#F0E6D3] transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={handleConfirmCreateGroup}
+                onClick={() => {
+                  const name = newGroupName.trim();
+                  if (!name) return;
+                  setShowCreateGroupModal(false);
+                  setNewGroupName("");
+                  router.push("/groups/" + encodeURIComponent(name) + "?adding=1");
+                }}
                 disabled={!newGroupName.trim()}
-                className="flex-1 py-2 bg-[#C8A96E] text-[#141210] rounded-lg text-sm font-semibold hover:bg-[#D4B87E] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                className="flex-1 py-2 bg-[#C8A96E] text-[#141210] rounded-lg text-sm font-semibold hover:bg-[#D4B87E] transition-colors disabled:opacity-60"
               >
                 Create
               </button>
