@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { BottomNav } from "@/components/BottomNav";
@@ -15,7 +15,7 @@ type Contact = {
 
 type Step = "name" | "filter" | "message" | "done";
 
-export default function PlanPage() {
+function PlanPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const appliedContactIdsRef = useRef(false);
@@ -397,5 +397,13 @@ function DoneStep({
         Back to home
       </button>
     </main>
+  );
+}
+
+export default function PlanPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#141210]" />}>
+      <PlanPageInner />
+    </Suspense>
   );
 }

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { BottomNav } from "@/components/BottomNav";
@@ -20,7 +20,7 @@ type FilterChip = {
   kind: "interest" | "group";
 };
 
-export default function ContactsPage() {
+function ContactsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -271,5 +271,13 @@ export default function ContactsPage() {
 
       <BottomNav />
     </main>
+  );
+}
+
+export default function ContactsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#141210]" />}>
+      <ContactsPageInner />
+    </Suspense>
   );
 }
