@@ -28,6 +28,7 @@ function PlanPageInner() {
   const [allGroups, setAllGroups] = useState<string[]>([]);
   const [activeFilters, setActiveFilters] = useState<{ label: string; kind: "interest" | "group" }[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
+  const [preSelectedIds, setPreSelectedIds] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -53,18 +54,17 @@ function PlanPageInner() {
     load();
   }, [router]);
 
+  // After contacts have loaded, read contactIds from URL and store in preSelectedIds (user stays on name step)
   useEffect(() => {
-    if (appliedContactIdsRef.current || contacts.length === 0) return;
+    if (loading) return;
+    if (appliedContactIdsRef.current) return;
     const contactIdsParam = searchParams.get("contactIds");
     if (!contactIdsParam) return;
     appliedContactIdsRef.current = true;
     const ids = contactIdsParam.split(",").map(s => s.trim()).filter(Boolean);
     const validIds = ids.filter(id => contacts.some(c => c.id === id));
-    if (validIds.length > 0) {
-      setSelected(validIds);
-      setStep("filter");
-    }
-  }, [searchParams, contacts]);
+    setPreSelectedIds(validIds);
+  }, [loading, searchParams, contacts]);
 
   const filteredContacts = contacts.filter(c => {
     if (activeFilters.length === 0) return true;
@@ -76,11 +76,17 @@ function PlanPageInner() {
 
   const prevStepRef = useRef<Step>("name");
   useEffect(() => {
-    if (prevStepRef.current !== "filter" && step === "filter") {
-      setSelected(filteredContacts.map(c => c.id));
+    // Only apply initial selection when coming from name step (first time entering guests step). Going Back from message preserves selection and activeFilters.
+    if (prevStepRef.current === "name" && step === "filter") {
+      if (preSelectedIds.length > 0) {
+        setSelected(preSelectedIds);
+        setPreSelectedIds([]);
+      } else {
+        setSelected(filteredContacts.map(c => c.id));
+      }
     }
     prevStepRef.current = step;
-  }, [step, filteredContacts]);
+  }, [step, filteredContacts, preSelectedIds]);
 
   const selectedContacts = contacts.filter(c => selected.includes(c.id));
 
@@ -298,7 +304,7 @@ function PlanPageInner() {
               disabled={selected.length === 0}
               className="w-full py-4 bg-[#C8A96E] text-[#141210] rounded-xl font-semibold text-sm hover:bg-[#D4B87E] transition-colors disabled:bg-[#2E2924] disabled:text-[#7A7068] disabled:cursor-not-allowed"
             >
-              Review guest list
+              Finalize event & send message
             </button>
           </>
         )}

@@ -214,13 +214,16 @@ function ContactsPageInner() {
             <button onClick={() => setActiveFilters([])} className="text-xs text-[#7A7068] hover:text-[#F0E6D3] transition-colors">
               Clear all filters
             </button>
-            <button
-              onClick={() => router.push(`/plan?contactIds=${filtered.map(c => c.id).join(",")}`)}
-              className="text-xs font-semibold text-[#C8A96E] hover:text-[#D4B87E] transition-colors"
-            >
-              Plan event
-            </button>
           </div>
+        )}
+
+        {activeFilters.length > 0 && filtered.length > 0 && (
+          <button
+            onClick={() => router.push(`/plan?contactIds=${filtered.map(c => c.id).join(",")}`)}
+            className="w-full py-3.5 bg-[#C8A96E] text-[#141210] rounded-xl font-semibold text-sm hover:bg-[#D4B87E] transition-colors mb-4"
+          >
+            Plan something with these people
+          </button>
         )}
 
         {loading ? (
