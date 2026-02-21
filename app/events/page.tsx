@@ -235,49 +235,50 @@ export default function EventsPage() {
       <header className="flex items-center justify-between px-6 py-5 border-b border-[#2E2924] sticky top-0 bg-[#141210] z-10">
         <button onClick={() => router.push("/dashboard")} className="font-serif italic text-[#C8A96E] text-xl">circle</button>
         <span className="text-sm text-[#7A7068]">Events</span>
-        <div className="flex items-center gap-2">
-          <button onClick={() => router.push("/plan")} className="text-sm text-[#C8A96E] hover:text-[#D4B87E] transition-colors">
-            Plan
-          </button>
-          <button onClick={() => router.push("/profile")} className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#C8A96E] text-[#141210] text-sm font-bold">
-            {userAvatarUrl ? (
-              <img src={userAvatarUrl} alt="" className="w-full h-full object-cover" />
-            ) : (
-              (userDisplayName || "?")[0].toUpperCase()
-            )}
-          </button>
-        </div>
+        <button onClick={() => router.push("/profile")} className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#C8A96E] text-[#141210] text-sm font-bold">
+          {userAvatarUrl ? (
+            <img src={userAvatarUrl} alt="" className="w-full h-full object-cover" />
+          ) : (
+            (userDisplayName || "?")[0].toUpperCase()
+          )}
+        </button>
       </header>
 
       <div className="max-w-lg mx-auto px-4 py-6 flex flex-col gap-6">
         {loading ? (
           <div className="text-center text-[#7A7068] text-sm py-12">Loading...</div>
-        ) : events.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="font-serif italic text-[#C8A96E] text-3xl mb-3">No events yet.</div>
-            <div className="text-[#7A7068] text-sm mb-6 max-w-xs mx-auto">Plan your first event and it will show up here.</div>
-            <button onClick={() => router.push("/plan")}
-              className="px-6 py-3 bg-[#C8A96E] text-[#141210] rounded-xl font-semibold text-sm hover:bg-[#D4B87E] transition-colors">
-              Plan something
-            </button>
-          </div>
         ) : (
           <>
-            {upcoming.length > 0 && (
-              <div>
-                <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold mb-3">Upcoming</div>
-                <div className="flex flex-col gap-2">
-                  {upcoming.map(e => <EventCard key={e.id} event={e} />)}
-                </div>
+            <button
+              onClick={() => router.push("/plan")}
+              className="w-full py-4 bg-[#C8A96E] text-[#141210] rounded-xl font-semibold text-sm hover:bg-[#D4B87E] transition-colors"
+            >
+              Plan something new
+            </button>
+            {events.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="font-serif italic text-[#C8A96E] text-3xl mb-3">No events yet.</div>
+                <div className="text-[#7A7068] text-sm max-w-xs mx-auto">Plan your first event and it will show up here.</div>
               </div>
-            )}
-            {past.length > 0 && (
-              <div>
-                <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold mb-3">Past</div>
-                <div className="flex flex-col gap-2">
-                  {past.map(e => <EventCard key={e.id} event={e} />)}
-                </div>
-              </div>
+            ) : (
+              <>
+                {upcoming.length > 0 && (
+                  <div>
+                    <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold mb-3">Upcoming</div>
+                    <div className="flex flex-col gap-2">
+                      {upcoming.map(e => <EventCard key={e.id} event={e} />)}
+                    </div>
+                  </div>
+                )}
+                {past.length > 0 && (
+                  <div>
+                    <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold mb-3">Past</div>
+                    <div className="flex flex-col gap-2">
+                      {past.map(e => <EventCard key={e.id} event={e} />)}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

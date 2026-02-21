@@ -152,7 +152,13 @@ function ContactsPageInner() {
 
   const getLastSeen = (date: string | null) => {
     if (!date) return "Never";
-    const days = Math.floor((Date.now() - new Date(date).getTime()) / 86400000);
+    const now = new Date();
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const [y, m, d] = date.split("-").map(Number);
+    if (isNaN(y) || isNaN(m) || isNaN(d)) return "Never";
+    const dateMidnight = new Date(y, m - 1, d).getTime();
+    const days = Math.floor((todayMidnight - dateMidnight) / 86400000);
+    if (days < 0) return "Upcoming";
     if (days === 0) return "Today";
     if (days === 1) return "Yesterday";
     if (days < 7) return `${days} days ago`;
@@ -251,15 +257,38 @@ function ContactsPageInner() {
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-[#F0E6D3] text-sm">{contact.full_name}</div>
                     <div className="text-xs text-[#7A7068] mt-0.5">Last seen {getLastSeen(contact.last_contacted)}</div>
-                    {contact.groups && contact.groups.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1.5">
-                        {contact.groups.map(g => (
-                          <span key={g} className="text-xs px-2 py-0.5 rounded-full bg-[#28211A] border border-[#C8A96E33] text-[#C8A96E88]">
-                            {g}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                    {(() => {
+                      const groups = contact.groups || [];
+                      const interests = contact.interests || [];
+                      const combined = [...groups, ...interests];
+                      if (combined.length === 0) return null;
+                      let visible: string[];
+                      let moreCount: number;
+                      if (groups.length > 5) {
+                        visible = groups.slice(0, 8);
+                        moreCount = Math.max(0, groups.length - 8) + interests.length;
+                      } else if (interests.length > 5) {
+                        visible = [...groups, ...interests.slice(0, 8)];
+                        moreCount = Math.max(0, interests.length - 8);
+                      } else {
+                        visible = combined.slice(0, 5);
+                        moreCount = Math.max(0, combined.length - 5);
+                      }
+                      return (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {visible.map((tag, i) => (
+                            <span key={`${tag}-${i}`} className="text-xs px-2 py-0.5 rounded-full bg-[#28211A] border border-[#C8A96E33] text-[#C8A96E88] capitalize">
+                              {tag}
+                            </span>
+                          ))}
+                          {moreCount > 0 && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-[#28211A] border border-[#2E2924] text-[#7A7068]">
+                              +{moreCount} more
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               ))}

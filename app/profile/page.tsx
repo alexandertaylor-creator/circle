@@ -83,7 +83,7 @@ export default function ProfilePage() {
     if (!file || !userId) return;
     e.target.value = "";
     setUploadingPhoto(true);
-    const path = "profile/" + userId;
+    const path = "profile/" + userId + "_" + Date.now() + ".jpg";
     const { error: uploadError } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
     if (uploadError) {
       setUploadingPhoto(false);
@@ -91,7 +91,7 @@ export default function ProfilePage() {
       return;
     }
     const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
-    const publicUrl = urlData.publicUrl;
+    const publicUrl = urlData.publicUrl + "?t=" + Date.now();
     await supabase.from("profiles").update({ avatar_url: publicUrl }).eq("id", userId);
     setAvatarUrl(publicUrl);
     setUploadingPhoto(false);

@@ -2,7 +2,6 @@
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { BottomNav } from "@/components/BottomNav";
 
 type Contact = {
   id: string;
@@ -186,17 +185,27 @@ function PlanPageInner() {
               <div className="font-serif text-2xl text-[#F0E6D3] mb-1">What are you planning?</div>
               <div className="text-sm text-[#7A7068]">Give your event a name and optional date.</div>
             </div>
-            <div className="flex flex-wrap gap-2 mb-2">
-              {["Rockets game", "Padel session", "Dinner", "Golf round", "Game night"].map(q => (
-                <button
-                  key={q}
-                  onClick={() => setEventName(q)}
-                  className={"px-3 py-1.5 rounded-full text-xs border transition-all " + (eventName === q ? "border-[#C8A96E] text-[#C8A96E] bg-[#28211A]" : "border-[#2E2924] text-[#7A7068]")}
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
+            {allInterests.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {allInterests.slice(0, 6).map(interest => (
+                  <button
+                    key={interest}
+                    type="button"
+                    onClick={() => {
+                      setEventName(interest);
+                      setActiveFilters(prev =>
+                        prev.some(f => f.label === interest && f.kind === "interest")
+                          ? prev
+                          : [...prev, { label: interest, kind: "interest" }]
+                      );
+                    }}
+                    className={"px-3 py-1.5 rounded-full text-xs border transition-all capitalize " + (eventName === interest ? "border-[#C8A96E] text-[#C8A96E] bg-[#28211A]" : "border-[#2E2924] text-[#7A7068]")}
+                  >
+                    {interest}
+                  </button>
+                ))}
+              </div>
+            )}
             <input
               type="text"
               placeholder="Event name"
@@ -343,8 +352,6 @@ function PlanPageInner() {
           </>
         )}
       </div>
-
-      <BottomNav />
     </main>
   );
 }

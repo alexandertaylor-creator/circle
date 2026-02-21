@@ -16,6 +16,13 @@ type Contact = {
   phone: string | null;
 };
 
+type Interaction = {
+  id?: string;
+  type: string;
+  occurred_on: string;
+  note: string | null;
+};
+
 export default function ContactProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = React.use(params);
   const router = useRouter();
@@ -44,24 +51,46 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
   const [editingDob, setEditingDob] = useState(false);
   const [dobInput, setDobInput] = useState("");
   const [savingDob, setSavingDob] = useState(false);
+  const [showLogModal, setShowLogModal] = useState(false);
+  const [logType, setLogType] = useState<string | null>(null);
+  const [logDate, setLogDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [logNotes, setLogNotes] = useState("");
+  const [logSaving, setLogSaving] = useState(false);
+  const [logShowSuccess, setLogShowSuccess] = useState(false);
+  const [interactions, setInteractions] = useState<Interaction[]>([]);
+  const [editingInteractionId, setEditingInteractionId] = useState<string | null>(null);
+  const [editInteractionType, setEditInteractionType] = useState<string>("hangout");
+  const [editInteractionDate, setEditInteractionDate] = useState("");
+  const [editInteractionNote, setEditInteractionNote] = useState("");
+  const [savingInteractionEdit, setSavingInteractionEdit] = useState(false);
+  const [confirmDeleteInteractionId, setConfirmDeleteInteractionId] = useState<string | null>(null);
+  const [deletingInteractionId, setDeletingInteractionId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const INTERACTION_TYPES = [
+    { label: "Hung out", value: "hangout" },
+    { label: "Called", value: "call" },
+    { label: "Texted", value: "message" },
+    { label: "Event", value: "event" },
+    { label: "Other", value: "other" },
+  ] as const;
 
   useEffect(() => {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/auth"); return; }
-      const { data } = await supabase
-        .from("contacts")
-        .select("id, full_name, last_contacted, notes, interests, groups, created_at, photo_url, dob, phone")
-        .eq("id", id)
-        .single();
+      const [{ data }, { data: interactionsData }, { data: allData }] = await Promise.all([
+        supabase.from("contacts").select("id, full_name, last_contacted, notes, interests, groups, created_at, photo_url, dob, phone").eq("id", id).single(),
+        supabase.from("interactions").select("id, type, occurred_on, note").eq("contact_id", id).order("occurred_on", { ascending: false }),
+        supabase.from("contacts").select("interests, groups").limit(1000),
+      ]);
       if (data) {
         setContact(data);
         setNotes(data.notes || "");
         setPhone(data.phone || "");
         setDobInput(data.dob ? String(data.dob) : "");
       }
-      const { data: allData } = await supabase.from("contacts").select("interests, groups").limit(1000);
+      if (interactionsData) setInteractions(interactionsData as Interaction[]);
       if (allData) {
         setAllGroups(Array.from(new Set(allData.flatMap(c => c.groups || []))).sort());
         setAllInterests(Array.from(new Set(allData.flatMap(c => c.interests || []))).sort());
@@ -161,12 +190,70 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
 
   const getLastSeen = (date: string | null) => {
     if (!date) return "Never";
-    const days = Math.floor((Date.now() - new Date(date).getTime()) / 86400000);
+    const now = new Date();
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const [y, m, d] = date.split("-").map(Number);
+    if (isNaN(y) || isNaN(m) || isNaN(d)) return "Never";
+    const dateMidnight = new Date(y, m - 1, d).getTime();
+    const days = Math.floor((todayMidnight - dateMidnight) / 86400000);
+    if (days < 0) return "Upcoming";
     if (days === 0) return "Today";
     if (days === 1) return "Yesterday";
     if (days < 7) return `${days} days ago`;
     if (days < 30) return `${Math.floor(days/7)} week${Math.floor(days/7)>1?"s":""} ago`;
     return `${Math.floor(days/30)} month${Math.floor(days/30)>1?"s":""} ago`;
+  };
+
+  const lastContactedLabel = (): string => {
+    const latest = interactions[0];
+    if (latest?.type === "call") return "Last talked";
+    if (latest?.type === "message") return "Last texted";
+    return "Last seen";
+  };
+
+  const formatOccurredOn = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr + "T00:00:00");
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const getInteractionIcon = (type: string) => {
+    switch (type) {
+      case "call":
+        return (
+          <svg className="w-4 h-4 text-[#C8A96E] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+          </svg>
+        );
+      case "message":
+        return (
+          <svg className="w-4 h-4 text-[#C8A96E] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+        );
+      case "event":
+        return (
+          <svg className="w-4 h-4 text-[#C8A96E] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        );
+      case "hangout":
+        return (
+          <svg className="w-4 h-4 text-[#C8A96E] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+        );
+      default:
+        return (
+          <svg className="w-4 h-4 text-[#C8A96E] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+          </svg>
+        );
+    }
   };
 
   const saveNotes = async () => {
@@ -219,18 +306,102 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
     }
   };
 
+  const openLogModal = () => {
+    setLogType(null);
+    setLogDate(new Date().toISOString().split("T")[0]);
+    setLogNotes("");
+    setShowLogModal(true);
+  };
+
   const logInteraction = async () => {
-    if (!contact) return;
-    const today = new Date().toISOString().split("T")[0];
+    if (!contact || !logType) return;
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
-    await supabase.from("interactions").insert({
+    setLogSaving(true);
+    const occurredOn = logDate;
+    const note = logNotes.trim() || null;
+    const { error: insertError } = await supabase.from("interactions").insert({
       user_id: session.user.id,
       contact_id: contact.id,
-      occurred_on: today,
-      type: "hangout",
+      type: logType,
+      occurred_on: occurredOn,
+      note,
     });
-    setContact(prev => prev ? { ...prev, last_contacted: today } : null);
+    if (insertError) {
+      setLogSaving(false);
+      console.error(insertError);
+      return;
+    }
+    await supabase.from("contacts").update({ last_contacted: occurredOn }).eq("id", contact.id);
+    setContact(prev => prev ? { ...prev, last_contacted: occurredOn } : null);
+    setLogSaving(false);
+    setLogShowSuccess(true);
+    setTimeout(() => {
+      setShowLogModal(false);
+      setLogShowSuccess(false);
+    }, 1000);
+    refreshInteractionsAndLastContacted();
+  };
+
+  const refreshInteractionsAndLastContacted = async () => {
+    if (!contact) return;
+    const { data: list } = await supabase
+      .from("interactions")
+      .select("id, type, occurred_on, note")
+      .eq("contact_id", contact.id)
+      .order("occurred_on", { ascending: false });
+    setInteractions((list ?? []) as Interaction[]);
+    const mostRecent = list?.[0];
+    const newLastContacted = mostRecent?.occurred_on ?? null;
+    await supabase.from("contacts").update({ last_contacted: newLastContacted }).eq("id", contact.id);
+    setContact(prev => prev ? { ...prev, last_contacted: newLastContacted } : null);
+  };
+
+  const startEditInteraction = (row: Interaction) => {
+    if (!row.id) return;
+    setEditingInteractionId(row.id);
+    setEditInteractionType(row.type);
+    setEditInteractionDate(row.occurred_on);
+    setEditInteractionNote(row.note ?? "");
+  };
+
+  const cancelEditInteraction = () => {
+    setEditingInteractionId(null);
+  };
+
+  const saveEditInteraction = async () => {
+    if (!editingInteractionId || !contact) return;
+    setSavingInteractionEdit(true);
+    const note = editInteractionNote.trim() || null;
+    const { error } = await supabase
+      .from("interactions")
+      .update({ type: editInteractionType, occurred_on: editInteractionDate, note })
+      .eq("id", editingInteractionId);
+    setSavingInteractionEdit(false);
+    if (error) {
+      console.error(error);
+      return;
+    }
+    setEditingInteractionId(null);
+    await refreshInteractionsAndLastContacted();
+  };
+
+  const confirmDeleteInteraction = (row: Interaction) => {
+    if (!row.id) return;
+    setConfirmDeleteInteractionId(row.id);
+  };
+
+  const cancelDeleteInteraction = () => {
+    setConfirmDeleteInteractionId(null);
+  };
+
+  const executeDeleteInteraction = async () => {
+    if (!confirmDeleteInteractionId || !contact) return;
+    setDeletingInteractionId(confirmDeleteInteractionId);
+    await supabase.from("interactions").delete().eq("id", confirmDeleteInteractionId);
+    setConfirmDeleteInteractionId(null);
+    setDeletingInteractionId(null);
+    await refreshInteractionsAndLastContacted();
   };
 
   if (loading) return (
@@ -347,17 +518,88 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
                     </svg>
                   </button>
                 </div>
-                <div className="text-sm text-[#7A7068]">Last seen {getLastSeen(contact.last_contacted)}</div>
+                <div className="text-sm text-[#7A7068]">{lastContactedLabel()} {getLastSeen(contact.last_contacted)}</div>
               </div>
             )}
           </div>
         </div>
 
-        {/* Log hangout button */}
-        <button onClick={logInteraction}
+        {/* Log interaction button */}
+        <button onClick={openLogModal}
           className="w-full py-3 border border-[#C8A96E] text-[#C8A96E] rounded-xl text-sm font-semibold hover:bg-[#28211A] transition-colors">
           Log a hangout
         </button>
+
+        {/* Log interaction modal */}
+        {showLogModal && (
+          <>
+            <div
+              className="fixed inset-0 bg-black/60 z-40"
+              onClick={() => !logSaving && !logShowSuccess && setShowLogModal(false)}
+              aria-hidden
+            />
+            <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#1C1916] rounded-t-2xl border-t border-[#2E2924] shadow-2xl px-4 pt-5 pb-8 safe-area-pb">
+              {logShowSuccess ? (
+                <div className="flex flex-col items-center justify-center py-8 gap-3">
+                  <div className="w-14 h-14 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center">
+                    <svg className="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-lg font-semibold text-emerald-400">Logged!</span>
+                </div>
+              ) : (
+                <>
+                  <div className="text-center font-serif text-lg text-[#C8A96E] mb-4">Log interaction</div>
+                  <div className="mb-4">
+                    <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold mb-2">Type</div>
+                    <div className="flex flex-wrap gap-2">
+                      {INTERACTION_TYPES.map(({ label, value }) => (
+                        <button
+                          key={value}
+                          onClick={() => setLogType(value)}
+                          className={`px-4 py-2 rounded-full text-sm font-medium border transition-all ${
+                            logType === value
+                              ? "border-[#C8A96E] text-[#C8A96E] bg-[#28211A]"
+                              : "border-[#2E2924] text-[#7A7068] hover:border-[#C8A96E44]"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mb-4">
+                    <label className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold mb-2 block">Date</label>
+                    <input
+                      type="date"
+                      value={logDate}
+                      onChange={e => setLogDate(e.target.value)}
+                      className="w-full bg-[#231F1B] border border-[#2E2924] rounded-xl px-4 py-3 text-sm text-[#F0E6D3] outline-none focus:border-[#C8A96E] transition-colors"
+                    />
+                  </div>
+                  <div className="mb-6">
+                    <label className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold mb-2 block">Note (optional)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. watched the Rockets game"
+                      value={logNotes}
+                      onChange={e => setLogNotes(e.target.value)}
+                      className="w-full bg-[#231F1B] border border-[#2E2924] rounded-xl px-4 py-3 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors"
+                    />
+                  </div>
+                  <button
+                    onClick={logInteraction}
+                    disabled={!logType || logSaving}
+                    className="w-full py-4 bg-[#C8A96E] text-[#141210] rounded-xl font-semibold text-sm hover:bg-[#D4B87E] transition-colors disabled:bg-[#2E2924] disabled:text-[#7A7068] disabled:cursor-not-allowed"
+                  >
+                    {logSaving ? "Logging..." : "Log it"}
+                  </button>
+                </>
+              )}
+            </div>
+          </>
+        )}
 
         {/* Groups */}
         <div className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4">
@@ -573,6 +815,115 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
           ) : (
             <div className="text-sm text-[#7A7068] leading-relaxed">
               {notes || "No notes yet."}
+            </div>
+          )}
+        </div>
+
+        {/* Interactions history */}
+        <div className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4">
+          <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold mb-3">Interactions</div>
+          {interactions.length === 0 ? (
+            <div className="text-sm text-[#7A7068]">No interactions yet. Log one above.</div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {interactions.map((row, idx) => (
+                <div key={row.id ?? `${row.occurred_on}-${row.type}-${idx}`} className="border-b border-[#2E2924] last:border-0 last:pb-0 first:pt-0 py-2">
+                  {confirmDeleteInteractionId === row.id ? (
+                    <div className="flex flex-col gap-2 py-1">
+                      <div className="text-sm text-[#F0E6D3]">Are you sure?</div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={executeDeleteInteraction}
+                          disabled={!!deletingInteractionId}
+                          className="flex-1 py-2 bg-[#8B4545] text-white rounded-lg text-xs font-semibold hover:bg-[#A05555] transition-colors disabled:opacity-60"
+                        >
+                          {deletingInteractionId === row.id ? "Deleting..." : "Delete"}
+                        </button>
+                        <button
+                          onClick={cancelDeleteInteraction}
+                          disabled={!!deletingInteractionId}
+                          className="flex-1 py-2 border border-[#2E2924] text-[#7A7068] rounded-lg text-xs hover:text-[#F0E6D3] transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : editingInteractionId === row.id ? (
+                    <div className="flex flex-col gap-3 py-1">
+                      <div className="flex flex-wrap gap-2">
+                        {INTERACTION_TYPES.map(({ label, value }) => (
+                          <button
+                            key={value}
+                            onClick={() => setEditInteractionType(value)}
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                              editInteractionType === value
+                                ? "border-[#C8A96E] text-[#C8A96E] bg-[#28211A]"
+                                : "border-[#2E2924] text-[#7A7068] hover:border-[#C8A96E44]"
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <input
+                        type="date"
+                        value={editInteractionDate}
+                        onChange={e => setEditInteractionDate(e.target.value)}
+                        className="w-full bg-[#231F1B] border border-[#2E2924] rounded-lg px-3 py-2 text-sm text-[#F0E6D3] outline-none focus:border-[#C8A96E] transition-colors"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Note (optional)"
+                        value={editInteractionNote}
+                        onChange={e => setEditInteractionNote(e.target.value)}
+                        className="w-full bg-[#231F1B] border border-[#2E2924] rounded-lg px-3 py-2 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={saveEditInteraction}
+                          disabled={savingInteractionEdit}
+                          className="flex-1 py-2 bg-[#C8A96E] text-[#141210] rounded-lg text-xs font-semibold hover:bg-[#D4B87E] transition-colors disabled:opacity-60"
+                        >
+                          {savingInteractionEdit ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          onClick={cancelEditInteraction}
+                          disabled={savingInteractionEdit}
+                          className="flex-1 py-2 border border-[#2E2924] text-[#7A7068] rounded-lg text-xs hover:text-[#F0E6D3] transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[#28211A] border border-[#2E2924] flex-shrink-0">
+                        {getInteractionIcon(row.type)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-[#F0E6D3]">{formatOccurredOn(row.occurred_on)}</div>
+                        {row.note && <div className="text-xs text-[#7A7068] truncate">{row.note}</div>}
+                      </div>
+                      {row.id && (
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            onClick={() => startEditInteraction(row)}
+                            className="px-2 py-1 text-xs text-[#C8A96E] hover:bg-[#28211A] rounded transition-colors"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => confirmDeleteInteraction(row)}
+                            className="px-2 py-1 text-xs text-[#A67A7A] hover:bg-[#2E2222] rounded transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>

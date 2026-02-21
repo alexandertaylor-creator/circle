@@ -26,11 +26,16 @@ export default function GroupDetailPage({ params }: { params: Promise<{ name: st
   const [adding, setAdding] = useState(false);
   const [search, setSearch] = useState("");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [editGroupNameInput, setEditGroupNameInput] = useState("");
+  const [savingRename, setSavingRename] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (searchParams.get("adding") === "1") setAdding(true);
-  }, [searchParams]);
+    if (searchParams.get("adding") === "1") {
+      setAdding(true);
+      setEditGroupNameInput(groupName);
+    }
+  }, [searchParams, groupName]);
 
   useEffect(() => {
     const load = async () => {
@@ -63,7 +68,13 @@ export default function GroupDetailPage({ params }: { params: Promise<{ name: st
 
   const getLastSeen = (date: string | null) => {
     if (!date) return "Never";
-    const days = Math.floor((Date.now() - new Date(date).getTime()) / 86400000);
+    const now = new Date();
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const [y, m, d] = date.split("-").map(Number);
+    if (isNaN(y) || isNaN(m) || isNaN(d)) return "Never";
+    const dateMidnight = new Date(y, m - 1, d).getTime();
+    const days = Math.floor((todayMidnight - dateMidnight) / 86400000);
+    if (days < 0) return "Upcoming";
     if (days === 0) return "Today";
     if (days === 1) return "Yesterday";
     if (days < 7) return `${days} days ago`;
@@ -132,6 +143,38 @@ export default function GroupDetailPage({ params }: { params: Promise<{ name: st
     setSearch("");
   };
 
+  const handleEditToggle = () => {
+    if (!adding) {
+      setEditGroupNameInput(groupName);
+    }
+    setAdding(!adding);
+  };
+
+  const handleDoneSave = async () => {
+    const newName = editGroupNameInput.trim();
+    if (!newName || newName === groupName) {
+      setAdding(false);
+      return;
+    }
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    setSavingRename(true);
+    for (const c of allContacts) {
+      if ((c.groups || []).includes(groupName)) {
+        const newGroups = (c.groups || []).map(g => g === groupName ? newName : g);
+        await supabase.from("contacts").update({ groups: newGroups }).eq("id", c.id);
+      }
+    }
+    await supabase.from("groups").upsert(
+      { user_id: session.user.id, name: newName, photo_url: groupPhoto || null },
+      { onConflict: "user_id,name" }
+    );
+    await supabase.from("groups").delete().eq("user_id", session.user.id).eq("name", groupName);
+    setSavingRename(false);
+    setAdding(false);
+    router.push("/groups/" + encodeURIComponent(newName));
+  };
+
   const nonMembers = allContacts.filter(c =>
     !(c.groups || []).includes(groupName) &&
     c.full_name.toLowerCase().includes(search.toLowerCase())
@@ -149,22 +192,35 @@ export default function GroupDetailPage({ params }: { params: Promise<{ name: st
         <button onClick={() => router.push("/groups")} className="text-sm text-[#7A7068] hover:text-[#F0E6D3] transition-colors">
           Back
         </button>
-        <span className="font-serif italic text-[#C8A96E] text-lg capitalize">{groupName}</span>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setAdding(!adding)} className="text-sm text-[#C8A96E] hover:text-[#D4B87E] transition-colors">
-            {adding ? "Done" : "Edit"}
-          </button>
-          <button onClick={() => router.push("/profile")} className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#C8A96E] text-[#141210] text-sm font-bold">
+        {adding ? (
+          <input
+            type="text"
+            value={editGroupNameInput}
+            onChange={e => setEditGroupNameInput(e.target.value)}
+            className="font-serif italic text-[#C8A96E] text-lg bg-transparent border-b border-[#C8A96E44] outline-none focus:border-[#C8A96E] px-1 py-0.5 min-w-0 max-w-[180px] capitalize placeholder-[#7A7068]"
+            placeholder="Group name"
+          />
+        ) : (
+          <span className="font-serif italic text-[#C8A96E] text-lg capitalize">{groupName}</span>
+        )}
+        <button onClick={() => router.push("/profile")} className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#C8A96E] text-[#141210] text-sm font-bold">
             {userAvatarUrl ? (
               <img src={userAvatarUrl} alt="" className="w-full h-full object-cover" />
             ) : (
               (userDisplayName || "?")[0].toUpperCase()
             )}
           </button>
-        </div>
       </header>
 
       <div className="max-w-lg mx-auto px-4 py-6 flex flex-col gap-4">
+
+        <button
+          onClick={adding ? handleDoneSave : handleEditToggle}
+          disabled={adding && savingRename}
+          className={"w-full py-3 rounded-xl font-semibold text-sm transition-colors disabled:opacity-60 " + (adding ? "bg-[#C8A96E] text-[#141210] hover:bg-[#D4B87E]" : "border border-[#C8A96E] text-[#C8A96E] hover:bg-[#C8A96E22]")}
+        >
+          {adding ? (savingRename ? "Saving..." : "Done") : "Edit"}
+        </button>
 
         {/* Group avatar with photo upload */}
         <div className="flex justify-center pb-2">

@@ -22,6 +22,7 @@ export default function DashboardPage() {
   const [userName, setUserName] = useState("");
   const [userAvatarUrl, setUserAvatarUrl] = useState("");
   const [topFriends, setTopFriends] = useState<Contact[]>([]);
+  const [interactionCountByContact, setInteractionCountByContact] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -45,6 +46,7 @@ export default function DashboardPage() {
       const { data: interactions } = await supabase
         .from("interactions")
         .select("contact_id")
+        .eq("user_id", session.user.id)
         .limit(10000);
       if (data) {
         setContacts(data);
@@ -54,6 +56,7 @@ export default function DashboardPage() {
           acc[r.contact_id] = (acc[r.contact_id] || 0) + 1;
           return acc;
         }, {} as Record<string, number>);
+        setInteractionCountByContact(countByContact);
         const topIds = Object.entries(countByContact)
           .sort((a, b) => b[1] - a[1])
           .slice(0, 3)
@@ -82,11 +85,23 @@ export default function DashboardPage() {
 
   const getDaysSince = (date: string | null) => {
     if (!date) return 999;
-    return Math.floor((Date.now() - new Date(date).getTime()) / 86400000);
+    const now = new Date();
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const [y, m, d] = date.split("-").map(Number);
+    if (isNaN(y) || isNaN(m) || isNaN(d)) return 999;
+    const dateMidnight = new Date(y, m - 1, d).getTime();
+    return Math.floor((todayMidnight - dateMidnight) / 86400000);
   };
 
   const getLastSeen = (date: string | null) => {
-    const days = getDaysSince(date);
+    if (!date) return "Never";
+    const now = new Date();
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const [y, m, d] = date.split("-").map(Number);
+    if (isNaN(y) || isNaN(m) || isNaN(d)) return "Never";
+    const dateMidnight = new Date(y, m - 1, d).getTime();
+    const days = Math.floor((todayMidnight - dateMidnight) / 86400000);
+    if (days < 0) return "Upcoming";
     if (days === 0) return "Today";
     if (days === 1) return "Yesterday";
     if (days < 7) return `${days} days ago`;
@@ -126,33 +141,6 @@ export default function DashboardPage() {
             {contacts.length === 0 ? "Welcome to circle." : `Your circle has ${contacts.length} ${contacts.length === 1 ? "person" : "people"}.`}
           </div>
         </div>
-
-        {needsAttention.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold">Reconnect</div>
-              <button onClick={() => router.push("/contacts")} className="text-xs text-[#C8A96E]">See all</button>
-            </div>
-            <div className="flex flex-col gap-2">
-              {needsAttention.map(contact => (
-                <div key={contact.id} onClick={() => router.push(`/contacts/${contact.id}`)} className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4 flex items-center gap-3 cursor-pointer hover:border-[#C8A96E33] transition-all">
-                  {contact.photo_url ? (
-                    <img src={contact.photo_url} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
-                      style={{ background: getColor(contact.full_name) }}>
-                      {getInitials(contact.full_name)}
-                    </div>
-                  )}
-                  <div className="flex-1">
-                    <div className="font-medium text-sm text-[#F0E6D3]">{contact.full_name}</div>
-                    <div className="text-xs text-[#7A7068]">Last seen {getLastSeen(contact.last_contacted)}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         <button onClick={() => router.push("/plan")}
           className="w-full bg-[#C8A96E] text-[#141210] rounded-2xl p-5 text-left hover:bg-[#D4B87E] transition-colors">
@@ -225,9 +213,45 @@ export default function DashboardPage() {
                   )}
                   <div className="flex-1">
                     <div className="font-medium text-sm text-[#F0E6D3]">{contact.full_name}</div>
-                    {contact.groups && contact.groups.length > 0 && (
-                      <div className="text-xs text-[#7A7068] capitalize">{contact.groups.join(", ")}</div>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                      {contact.groups && contact.groups.length > 0 && (
+                        <div className="text-xs text-[#7A7068] capitalize">{contact.groups.join(", ")}</div>
+                      )}
+                      {interactionCountByContact[contact.id] != null && interactionCountByContact[contact.id] > 0 && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-[#28211A] border border-[#C8A96E33] text-[#C8A96E88]">
+                          {interactionCountByContact[contact.id] === 1
+                            ? "1 hangout"
+                            : `${interactionCountByContact[contact.id]} hangouts`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {needsAttention.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold">Reconnect</div>
+              <button onClick={() => router.push("/contacts")} className="text-xs text-[#C8A96E]">See all</button>
+            </div>
+            <div className="flex flex-col gap-2">
+              {needsAttention.map(contact => (
+                <div key={contact.id} onClick={() => router.push(`/contacts/${contact.id}`)} className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4 flex items-center gap-3 cursor-pointer hover:border-[#C8A96E33] transition-all">
+                  {contact.photo_url ? (
+                    <img src={contact.photo_url} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
+                      style={{ background: getColor(contact.full_name) }}>
+                      {getInitials(contact.full_name)}
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <div className="font-medium text-sm text-[#F0E6D3]">{contact.full_name}</div>
+                    <div className="text-xs text-[#7A7068]">Last seen {getLastSeen(contact.last_contacted)}</div>
                   </div>
                 </div>
               ))}

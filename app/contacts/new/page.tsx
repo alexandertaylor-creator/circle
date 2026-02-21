@@ -69,7 +69,8 @@ function TagInput({
 
 export default function NewContactPage() {
   const router = useRouter();
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [dob, setDob] = useState("");
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
@@ -89,6 +90,9 @@ export default function NewContactPage() {
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
+  const [existingContacts, setExistingContacts] = useState<{ id: string; full_name: string }[]>([]);
+  const [duplicateContact, setDuplicateContact] = useState<{ id: string; full_name: string } | null>(null);
+  const [dismissedDuplicateWarning, setDismissedDuplicateWarning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -111,8 +115,9 @@ export default function NewContactPage() {
   }, [router]);
 
   const loadExisting = async () => {
-    const { data } = await supabase.from("contacts").select("interests, groups").limit(1000);
+    const { data } = await supabase.from("contacts").select("id, full_name, interests, groups").limit(1000);
     if (data) {
+      setExistingContacts(data.map(c => ({ id: c.id, full_name: c.full_name || "" })));
       const allI = Array.from(new Set(data.flatMap(c => c.interests || []))).sort();
       const allG = Array.from(new Set(data.flatMap(c => c.groups || []))).sort();
       setAllInterests(allI);
@@ -133,6 +138,20 @@ export default function NewContactPage() {
       t.toLowerCase().includes(groupInput.toLowerCase()) && !groups.includes(t)
     ));
   }, [groupInput, allGroups, groups]);
+
+  const fullNameForCheck = (firstName.trim() + " " + lastName.trim()).trim();
+  useEffect(() => {
+    setDismissedDuplicateWarning(false);
+    if (!fullNameForCheck) {
+      setDuplicateContact(null);
+      return;
+    }
+    const key = fullNameForCheck.toLowerCase();
+    const match = existingContacts.find(
+      c => (c.full_name || "").trim().toLowerCase() === key
+    );
+    setDuplicateContact(match ?? null);
+  }, [fullNameForCheck, existingContacts]);
 
   const addInterest = (val: string) => {
     const clean = val.trim().toLowerCase();
@@ -168,15 +187,28 @@ export default function NewContactPage() {
     setUploadingPhoto(false);
   };
 
+  const formatPhoneDisplay = (raw: string) => {
+    const digits = raw.replace(/\D/g, "").slice(0, 10);
+    if (digits.length <= 3) return digits ? `(${digits}` : "";
+    if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPhone(formatPhoneDisplay(e.target.value));
+  };
+
   const handleSave = async () => {
-    if (!name.trim() || !userId) return;
+    const fullName = (firstName.trim() + " " + lastName.trim()).trim();
+    if (!fullName || !userId) return;
     setLoading(true);
+    const phoneDigits = phone.replace(/\D/g, "").trim();
     const { error } = await supabase.from("contacts").insert({
       user_id: userId,
-      full_name: name,
+      full_name: fullName,
       photo_url: photoUrl || null,
       dob: dob || null,
-      phone: phone.trim() || null,
+      phone: phoneDigits || null,
       notes: notes.trim() || null,
       interests,
       groups,
@@ -200,7 +232,7 @@ export default function NewContactPage() {
   if (saved) return (
     <main className="min-h-screen bg-[#141210] flex flex-col items-center justify-center gap-4">
       <div className="w-16 h-16 rounded-full border-2 border-[#C8A96E] bg-[#C8A96E22] flex items-center justify-center text-2xl">v</div>
-      <div className="font-serif text-2xl text-[#F0E6D3]">{name} added.</div>
+      <div className="font-serif text-2xl text-[#F0E6D3]">{(firstName.trim() + " " + lastName.trim()).trim()} added.</div>
       <div className="text-sm text-[#7A7068]">Heading back to your people...</div>
     </main>
   );
@@ -256,14 +288,50 @@ export default function NewContactPage() {
             )}
           </button>
         </div>
-        <input
-          type="text"
-          placeholder="Full name"
-          value={name}
-          onChange={e => setName(e.target.value)}
-          autoFocus
-          className="w-full bg-[#1C1916] border border-[#2E2924] rounded-xl px-4 py-3 text-base text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors font-medium"
-        />
+        <div>
+          <label className="text-xs text-[#7A7068] mb-2 block font-medium">First name</label>
+          <input
+            type="text"
+            placeholder="e.g. Alex"
+            value={firstName}
+            onChange={e => setFirstName(e.target.value)}
+            autoFocus
+            className="w-full bg-[#1C1916] border border-[#2E2924] rounded-xl px-4 py-3 text-base text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors font-medium"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-[#7A7068] mb-2 block font-medium">Last name</label>
+          <input
+            type="text"
+            placeholder="e.g. Smith"
+            value={lastName}
+            onChange={e => setLastName(e.target.value)}
+            className="w-full bg-[#1C1916] border border-[#2E2924] rounded-xl px-4 py-3 text-base text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors font-medium"
+          />
+        </div>
+        {duplicateContact && !dismissedDuplicateWarning && (
+          <div className="rounded-xl border border-amber-500/50 bg-amber-500/10 p-4">
+            <p className="text-sm text-amber-200 mb-3">
+              A contact named <span className="font-medium text-amber-100">{duplicateContact.full_name}</span> already exists. Are you sure you want to add them?
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setDismissedDuplicateWarning(true)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500/30 border border-amber-500/50 text-amber-200 hover:bg-amber-500/40 transition-colors"
+              >
+                Yes, add anyway
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push(`/contacts/${duplicateContact.id}`)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[#C8A96E] text-[#C8A96E] hover:bg-[#28211A] transition-colors"
+              >
+                View existing contact
+              </button>
+            </div>
+          </div>
+        )}
         <div>
           <label className="text-xs text-[#7A7068] mb-2 block font-medium">Date of birth</label>
           <input
@@ -277,9 +345,10 @@ export default function NewContactPage() {
           <label className="text-xs text-[#7A7068] mb-2 block font-medium">Phone number</label>
           <input
             type="tel"
-            placeholder="e.g. +1 555 123 4567"
+            placeholder="(555) 123-4567"
             value={phone}
-            onChange={e => setPhone(e.target.value)}
+            onChange={handlePhoneChange}
+            maxLength={14}
             className="w-full bg-[#1C1916] border border-[#2E2924] rounded-xl px-4 py-3 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors"
           />
         </div>
@@ -304,6 +373,30 @@ export default function NewContactPage() {
           suggestions={interestSuggestions}
           allTags={allInterests}
         />
+        {allInterests.length > 0 && (
+          <div className="mb-1">
+            <div className="text-xs text-[#7A7068] mb-2 font-medium">Existing interests</div>
+            <div className="flex flex-wrap gap-2">
+              {allInterests.map(tag => {
+                const selected = interests.includes(tag);
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => { if (!selected) addInterest(tag); }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                      selected
+                        ? "border-[#C8A96E] text-[#C8A96E] bg-[#28211A]"
+                        : "border-[#2E2924] text-[#7A7068] hover:border-[#C8A96E44] hover:text-[#C8A96E]"
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <TagInput
           label="Groups"
           placeholder='e.g. the boys, work friends, college crew...'
@@ -315,7 +408,31 @@ export default function NewContactPage() {
           suggestions={groupSuggestions}
           allTags={allGroups}
         />
-        <button onClick={handleSave} disabled={!name.trim() || loading}
+        {allGroups.length > 0 && (
+          <div className="mb-1">
+            <div className="text-xs text-[#7A7068] mb-2 font-medium">Existing groups</div>
+            <div className="flex flex-wrap gap-2">
+              {allGroups.map(tag => {
+                const selected = groups.includes(tag);
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => { if (!selected) addGroup(tag); }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                      selected
+                        ? "border-[#C8A96E] text-[#C8A96E] bg-[#28211A]"
+                        : "border-[#2E2924] text-[#7A7068] hover:border-[#C8A96E44] hover:text-[#C8A96E]"
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        <button onClick={handleSave} disabled={!firstName.trim() || loading}
           className="w-full py-4 bg-[#C8A96E] text-[#141210] rounded-xl font-semibold text-sm hover:bg-[#D4B87E] transition-colors disabled:bg-[#2E2924] disabled:text-[#7A7068]">
           {loading ? "Saving..." : "Save friend"}
         </button>
