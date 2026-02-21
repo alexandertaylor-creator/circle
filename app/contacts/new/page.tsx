@@ -83,10 +83,13 @@ export default function NewContactPage() {
   const [allGroups, setAllGroups] = useState<string[]>([]);
   const [userAvatarUrl, setUserAvatarUrl] = useState("");
   const [userDisplayName, setUserDisplayName] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -147,12 +150,31 @@ export default function NewContactPage() {
     setGroupSuggestions([]);
   };
 
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !userId) return;
+    e.target.value = "";
+    setUploadingPhoto(true);
+    const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const path = `${userId}/${crypto.randomUUID()}.${ext}`;
+    const { error: uploadError } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
+    if (uploadError) {
+      setUploadingPhoto(false);
+      console.error(uploadError);
+      return;
+    }
+    const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
+    setPhotoUrl(urlData.publicUrl);
+    setUploadingPhoto(false);
+  };
+
   const handleSave = async () => {
     if (!name.trim() || !userId) return;
     setLoading(true);
     const { error } = await supabase.from("contacts").insert({
       user_id: userId,
       full_name: name,
+      photo_url: photoUrl || null,
       dob: dob || null,
       phone: phone.trim() || null,
       notes: notes.trim() || null,
@@ -199,6 +221,41 @@ export default function NewContactPage() {
         </button>
       </header>
       <div className="max-w-lg mx-auto px-4 py-6 flex flex-col gap-4">
+        {/* Contact photo upload */}
+        <div className="flex justify-center pb-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handlePhotoSelect}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingPhoto}
+            className="relative w-28 h-28 rounded-full flex items-center justify-center overflow-hidden border-2 border-[#2E2924] hover:border-[#C8A96E44] transition-colors disabled:opacity-70 bg-[#1C1916] flex-shrink-0"
+          >
+            {uploadingPhoto ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-[#141210]/80">
+                <span className="text-[#C8A96E] text-sm">...</span>
+              </div>
+            ) : photoUrl ? (
+              <img src={photoUrl} alt="" className="w-full h-full object-cover" />
+            ) : null}
+            {!uploadingPhoto && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-12 h-12 rounded-full bg-[#141210]/90 border border-[#2E2924] flex items-center justify-center">
+                  <svg className="w-6 h-6 text-[#C8A96E]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 13v4a2 2 0 01-2 2H7a2 2 0 01-2-2v-4M14 12v.01" />
+                  </svg>
+                </div>
+              </div>
+            )}
+          </button>
+        </div>
         <input
           type="text"
           placeholder="Full name"

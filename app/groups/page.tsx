@@ -7,12 +7,12 @@ import { BottomNav } from "@/components/BottomNav";
 type GroupSummary = {
   name: string;
   count: number;
-  members: { full_name: string; photo_url: string | null }[];
 };
 
 export default function GroupsPage() {
   const router = useRouter();
   const [groups, setGroups] = useState<GroupSummary[]>([]);
+  const [groupPhotos, setGroupPhotos] = useState<Record<string, string>>({});
   const [sortBySize, setSortBySize] = useState(false);
   const [loading, setLoading] = useState(true);
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
@@ -21,36 +21,33 @@ export default function GroupsPage() {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/auth"); return; }
-      const [{ data: contacts }, { data: profile }] = await Promise.all([
-        supabase.from("contacts").select("full_name, groups, photo_url").limit(1000),
+      const [{ data: contacts }, { data: profile }, { data: groupsRows }] = await Promise.all([
+        supabase.from("contacts").select("full_name, groups").limit(1000),
         supabase.from("profiles").select("avatar_url").eq("id", session.user.id).single(),
+        supabase.from("groups").select("name, photo_url").eq("user_id", session.user.id),
       ]);
       if (profile) setUserAvatar(profile.avatar_url);
+      if (groupsRows) {
+        const photoMap: Record<string, string> = {};
+        groupsRows.forEach((row: { name: string; photo_url: string | null }) => {
+          if (row.photo_url) photoMap[row.name] = row.photo_url;
+        });
+        setGroupPhotos(photoMap);
+      }
       if (contacts) {
-        const map: Record<string, { full_name: string; photo_url: string | null }[]> = {};
+        const map: Record<string, number> = {};
         contacts.forEach(c => {
           (c.groups || []).forEach((g: string) => {
-            if (!map[g]) map[g] = [];
-            map[g].push({ full_name: c.full_name, photo_url: c.photo_url });
+            map[g] = (map[g] || 0) + 1;
           });
         });
-        const summaries = Object.entries(map).map(([name, members]) => ({
-          name, count: members.length, members: members.slice(0, 4)
-        }));
+        const summaries = Object.entries(map).map(([name, count]) => ({ name, count }));
         setGroups(summaries);
       }
       setLoading(false);
     };
     load();
   }, [router]);
-
-  const getInitials = (name: string) =>
-    name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
-
-  const getColor = (name: string) => {
-    const colors = ["#5A7E9E","#7E5A9E","#5A9E78","#9E7A5A","#9E5A6A","#6A9E5A","#5A8E9E","#9E905A"];
-    return colors[name.charCodeAt(0) % colors.length];
-  };
 
   const sorted = sortBySize
     ? [...groups].sort((a, b) => b.count - a.count)
@@ -83,27 +80,18 @@ export default function GroupsPage() {
           sorted.map(group => (
             <button key={group.name}
               onClick={() => router.push("/groups/" + encodeURIComponent(group.name))}
-              className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4 text-left hover:border-[#C8A96E33] transition-all w-full">
-              <div className="flex items-center justify-between mb-3">
-                <div className="font-semibold text-[#F0E6D3] capitalize text-base">{group.name}</div>
-                <div className="text-xs text-[#7A7068]">{group.count} {group.count === 1 ? "person" : "people"}</div>
-              </div>
-              <div className="flex gap-1.5">
-                {group.members.map(m => (
-                  <div key={m.full_name} className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0"
-                    style={{ background: getColor(m.full_name) }}>
-                    {m.photo_url
-                      ? <img src={m.photo_url} alt="" className="w-full h-full object-cover" />
-                      : <div className="w-full h-full flex items-center justify-center text-xs font-bold text-white">{getInitials(m.full_name)}</div>
-                    }
-                  </div>
-                ))}
-                {group.count > 4 && (
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs text-[#7A7068] bg-[#2E2924]">
-                    +{group.count - 4}
-                  </div>
+              className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4 text-left hover:border-[#C8A96E33] transition-all w-full flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#28211A] text-[#C8A96E] text-lg font-semibold">
+                {groupPhotos[group.name] ? (
+                  <img src={groupPhotos[group.name]} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  group.name.charAt(0).toUpperCase()
                 )}
               </div>
+              <div className="flex-1 min-w-0 text-left">
+                <div className="font-semibold text-[#F0E6D3] capitalize text-base truncate">{group.name}</div>
+              </div>
+              <div className="text-xs text-[#7A7068] flex-shrink-0">{group.count} {group.count === 1 ? "person" : "people"}</div>
             </button>
           ))
         )}

@@ -18,6 +18,7 @@ export default function DashboardPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [allInterests, setAllInterests] = useState<string[]>([]);
   const [allGroups, setAllGroups] = useState<string[]>([]);
+  const [groupPhotos, setGroupPhotos] = useState<Record<string, string>>({});
   const [userName, setUserName] = useState("");
   const [userAvatarUrl, setUserAvatarUrl] = useState("");
   const [topFriends, setTopFriends] = useState<Contact[]>([]);
@@ -27,18 +28,20 @@ export default function DashboardPage() {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/auth"); return; }
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("display_name, avatar_url")
-        .eq("id", session.user.id)
-        .single();
+      const [{ data: profile }, { data }, { data: groupsRows }] = await Promise.all([
+        supabase.from("profiles").select("display_name, avatar_url").eq("id", session.user.id).single(),
+        supabase.from("contacts").select("id, full_name, last_contacted, interests, groups, photo_url").order("full_name").limit(1000),
+        supabase.from("groups").select("name, photo_url").eq("user_id", session.user.id),
+      ]);
       setUserName(profile?.display_name ?? session.user.email?.split("@")[0] ?? "friend");
       if (profile?.avatar_url) setUserAvatarUrl(profile.avatar_url);
-      const { data } = await supabase
-        .from("contacts")
-        .select("id, full_name, last_contacted, interests, groups, photo_url")
-        .order("full_name")
-        .limit(1000);
+      if (groupsRows) {
+        const photoMap: Record<string, string> = {};
+        groupsRows.forEach((row: { name: string; photo_url: string | null }) => {
+          if (row.photo_url) photoMap[row.name] = row.photo_url;
+        });
+        setGroupPhotos(photoMap);
+      }
       const { data: interactions } = await supabase
         .from("interactions")
         .select("contact_id")
@@ -166,9 +169,18 @@ export default function DashboardPage() {
                 const count = contacts.filter(c => (c.groups || []).includes(group)).length;
                 return (
                   <button key={group} onClick={() => router.push(`/groups/${encodeURIComponent(group)}`)}
-                    className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4 text-left hover:border-[#C8A96E33] transition-all">
-                    <div className="font-medium text-sm text-[#F0E6D3] capitalize mb-1">{group}</div>
-                    <div className="text-xs text-[#7A7068]">{count} {count === 1 ? "person" : "people"}</div>
+                    className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4 text-left hover:border-[#C8A96E33] transition-all flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#28211A] text-[#C8A96E] text-sm font-semibold">
+                      {groupPhotos[group] ? (
+                        <img src={groupPhotos[group]} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        group.charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm text-[#F0E6D3] capitalize truncate">{group}</div>
+                      <div className="text-xs text-[#7A7068]">{count} {count === 1 ? "person" : "people"}</div>
+                    </div>
                   </button>
                 );
               })}

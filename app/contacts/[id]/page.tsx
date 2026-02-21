@@ -12,6 +12,8 @@ type Contact = {
   groups: string[] | null;
   created_at: string;
   photo_url: string | null;
+  dob: string | null;
+  phone: string | null;
 };
 
 export default function ContactProfilePage({ params }: { params: Promise<{ id: string }> }) {
@@ -33,6 +35,15 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [savingPhone, setSavingPhone] = useState(false);
+  const [editingDob, setEditingDob] = useState(false);
+  const [dobInput, setDobInput] = useState("");
+  const [savingDob, setSavingDob] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -41,12 +52,14 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
       if (!session) { router.push("/auth"); return; }
       const { data } = await supabase
         .from("contacts")
-        .select("id, full_name, last_contacted, notes, interests, groups, created_at, photo_url")
+        .select("id, full_name, last_contacted, notes, interests, groups, created_at, photo_url, dob, phone")
         .eq("id", id)
         .single();
       if (data) {
         setContact(data);
         setNotes(data.notes || "");
+        setPhone(data.phone || "");
+        setDobInput(data.dob ? String(data.dob) : "");
       }
       const { data: allData } = await supabase.from("contacts").select("interests, groups").limit(1000);
       if (allData) {
@@ -165,6 +178,47 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
     setSavingNotes(false);
   };
 
+  const saveName = async () => {
+    if (!contact || !nameInput.trim()) return;
+    setSavingName(true);
+    const trimmed = nameInput.trim();
+    await supabase.from("contacts").update({ full_name: trimmed }).eq("id", contact.id);
+    setContact(prev => prev ? { ...prev, full_name: trimmed } : null);
+    setEditingName(false);
+    setSavingName(false);
+  };
+
+  const savePhone = async () => {
+    if (!contact) return;
+    setSavingPhone(true);
+    const trimmed = phone.trim() || null;
+    await supabase.from("contacts").update({ phone: trimmed }).eq("id", contact.id);
+    setContact(prev => prev ? { ...prev, phone: trimmed } : null);
+    setEditingPhone(false);
+    setSavingPhone(false);
+  };
+
+  const saveDob = async () => {
+    if (!contact) return;
+    setSavingDob(true);
+    const trimmed = dobInput.trim() || null;
+    await supabase.from("contacts").update({ dob: trimmed }).eq("id", contact.id);
+    setContact(prev => prev ? { ...prev, dob: trimmed } : null);
+    setEditingDob(false);
+    setSavingDob(false);
+  };
+
+  const formatDob = (d: string | null) => {
+    if (!d) return null;
+    try {
+      const date = new Date(d);
+      if (isNaN(date.getTime())) return d;
+      return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+    } catch {
+      return d;
+    }
+  };
+
   const logInteraction = async () => {
     if (!contact) return;
     const today = new Date().toISOString().split("T")[0];
@@ -256,9 +310,46 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
               </div>
             )}
           </button>
-          <div className="text-center">
-            <div className="font-serif text-2xl text-[#F0E6D3]">{contact.full_name}</div>
-            <div className="text-sm text-[#7A7068] mt-1">Last seen {getLastSeen(contact.last_contacted)}</div>
+          <div className="text-center w-full">
+            {editingName ? (
+              <div className="flex flex-col items-center gap-2">
+                <input
+                  type="text"
+                  value={nameInput}
+                  onChange={e => setNameInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") saveName(); if (e.key === "Escape") { setEditingName(false); setNameInput(contact.full_name); } }}
+                  placeholder="Full name"
+                  autoFocus
+                  className="w-full max-w-xs font-serif text-2xl text-[#F0E6D3] bg-[#1C1916] border border-[#2E2924] rounded-xl px-4 py-2 text-center placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors"
+                />
+                <div className="flex gap-2">
+                  <button onClick={saveName} disabled={savingName || !nameInput.trim()}
+                    className="px-4 py-2 bg-[#C8A96E] text-[#141210] rounded-lg text-sm font-semibold hover:bg-[#D4B87E] transition-colors disabled:opacity-50">
+                    {savingName ? "Saving..." : "Save"}
+                  </button>
+                  <button onClick={() => { setEditingName(false); setNameInput(contact.full_name); }} disabled={savingName}
+                    className="px-4 py-2 border border-[#2E2924] text-[#7A7068] rounded-lg text-sm hover:text-[#F0E6D3] transition-colors">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-1">
+                <div className="flex items-center justify-center gap-2">
+                  <div className="font-serif text-2xl text-[#F0E6D3]">{contact.full_name}</div>
+                  <button
+                    onClick={() => { setEditingName(true); setNameInput(contact.full_name); }}
+                    className="p-1.5 rounded-lg text-[#7A7068] hover:text-[#C8A96E] hover:bg-[#28211A] transition-colors"
+                    aria-label="Edit name"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="text-sm text-[#7A7068]">Last seen {getLastSeen(contact.last_contacted)}</div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -362,6 +453,89 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
                   {i}
                 </span>
               )) : <span className="text-sm text-[#7A7068]">No interests</span>}
+            </div>
+          )}
+        </div>
+
+        {/* Phone */}
+        <div className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold">Phone</div>
+            {!editingPhone && (
+              <button onClick={() => { setEditingPhone(true); setPhone(contact.phone || ""); }} className="text-xs text-[#C8A96E] hover:text-[#D4B87E] transition-colors">
+                {contact.phone ? "Edit" : "Add"}
+              </button>
+            )}
+          </div>
+          {editingPhone ? (
+            <div className="flex flex-col gap-2">
+              <input
+                type="tel"
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+                placeholder="Phone number"
+                className="w-full bg-[#231F1B] border border-[#2E2924] rounded-lg px-3 py-2 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors"
+              />
+              <div className="flex gap-2">
+                <button onClick={savePhone} disabled={savingPhone}
+                  className="flex-1 py-2 bg-[#C8A96E] text-[#141210] rounded-lg text-sm font-semibold hover:bg-[#D4B87E] transition-colors">
+                  {savingPhone ? "Saving..." : "Save"}
+                </button>
+                <button onClick={() => { setEditingPhone(false); setPhone(contact.phone || ""); }} disabled={savingPhone}
+                  className="flex-1 py-2 border border-[#2E2924] text-[#7A7068] rounded-lg text-sm hover:text-[#F0E6D3] transition-colors">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm">
+              {contact.phone ? (
+                <a href={`tel:${contact.phone}`} className="text-[#C8A96E] hover:text-[#D4B87E] transition-colors">
+                  {contact.phone}
+                </a>
+              ) : (
+                <span className="text-[#7A7068]">No phone</span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Date of birth */}
+        <div className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold">Date of birth</div>
+            {!editingDob && (
+              <button onClick={() => { setEditingDob(true); setDobInput(contact.dob ? String(contact.dob) : ""); }} className="text-xs text-[#C8A96E] hover:text-[#D4B87E] transition-colors">
+                {contact.dob ? "Edit" : "Add"}
+              </button>
+            )}
+          </div>
+          {editingDob ? (
+            <div className="flex flex-col gap-2">
+              <input
+                type="date"
+                value={dobInput}
+                onChange={e => setDobInput(e.target.value)}
+                className="w-full bg-[#231F1B] border border-[#2E2924] rounded-lg px-3 py-2 text-sm text-[#F0E6D3] outline-none focus:border-[#C8A96E] transition-colors"
+              />
+              <div className="flex gap-2">
+                <button onClick={saveDob} disabled={savingDob}
+                  className="flex-1 py-2 bg-[#C8A96E] text-[#141210] rounded-lg text-sm font-semibold hover:bg-[#D4B87E] transition-colors">
+                  {savingDob ? "Saving..." : "Save"}
+                </button>
+                <button onClick={() => { setEditingDob(false); setDobInput(contact.dob ? String(contact.dob) : ""); }} disabled={savingDob}
+                  className="flex-1 py-2 border border-[#2E2924] text-[#7A7068] rounded-lg text-sm hover:text-[#F0E6D3] transition-colors">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm">
+              {contact.dob ? (
+                <span className="text-[#F0E6D3]">{formatDob(contact.dob)}</span>
+              ) : (
+                <span className="text-[#7A7068]">No date of birth</span>
+              )}
             </div>
           )}
         </div>

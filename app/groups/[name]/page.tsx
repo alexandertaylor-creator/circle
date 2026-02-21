@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { BottomNav } from "@/components/BottomNav";
@@ -19,11 +19,14 @@ export default function GroupDetailPage({ params }: { params: Promise<{ name: st
   const searchParams = useSearchParams();
   const [members, setMembers] = useState<Contact[]>([]);
   const [allContacts, setAllContacts] = useState<Contact[]>([]);
+  const [groupPhoto, setGroupPhoto] = useState("");
   const [userAvatarUrl, setUserAvatarUrl] = useState("");
   const [userDisplayName, setUserDisplayName] = useState("");
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [search, setSearch] = useState("");
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (searchParams.get("adding") === "1") setAdding(true);
@@ -33,21 +36,17 @@ export default function GroupDetailPage({ params }: { params: Promise<{ name: st
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/auth"); return; }
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("avatar_url, display_name")
-        .eq("id", session.user.id)
-        .single();
+      const [{ data: profile }, { data: groupRow }, { data: contactsData }] = await Promise.all([
+        supabase.from("profiles").select("avatar_url, display_name").eq("id", session.user.id).single(),
+        supabase.from("groups").select("photo_url").eq("user_id", session.user.id).eq("name", groupName).maybeSingle(),
+        supabase.from("contacts").select("id, full_name, last_contacted, groups, interests").order("full_name").limit(1000),
+      ]);
       if (profile?.avatar_url) setUserAvatarUrl(profile.avatar_url);
       if (profile?.display_name) setUserDisplayName(profile.display_name);
-      const { data } = await supabase
-        .from("contacts")
-        .select("id, full_name, last_contacted, groups, interests")
-        .order("full_name")
-        .limit(1000);
-      if (data) {
-        setAllContacts(data);
-        setMembers(data.filter(c => (c.groups || []).includes(groupName)));
+      if (groupRow?.photo_url) setGroupPhoto(groupRow.photo_url);
+      if (contactsData) {
+        setAllContacts(contactsData);
+        setMembers(contactsData.filter(c => (c.groups || []).includes(groupName)));
       }
       setLoading(false);
     };
@@ -70,6 +69,52 @@ export default function GroupDetailPage({ params }: { params: Promise<{ name: st
     if (days < 7) return `${days} days ago`;
     if (days < 30) return `${Math.floor(days/7)}w ago`;
     return `${Math.floor(days/30)}mo ago`;
+  };
+
+  const handleGroupPhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      console.log("[Group photo] No file selected");
+      return;
+    }
+    e.target.value = "";
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      console.log("[Group photo] No session");
+      return;
+    }
+    setUploadingPhoto(true);
+    console.log("[Group photo] Starting upload, file:", file.name, "size:", file.size);
+
+    const path = "group/" + groupName.replace(/\s+/g, "_") + "_" + Date.now() + ".jpg";
+    console.log("[Group photo] Upload path:", path);
+
+    const { error: uploadError } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
+    if (uploadError) {
+      console.error("[Group photo] Upload error:", uploadError);
+      setUploadingPhoto(false);
+      return;
+    }
+    console.log("[Group photo] Upload success");
+
+    const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
+    const publicUrl = urlData.publicUrl;
+    console.log("[Group photo] Public URL:", publicUrl);
+
+    const { error: upsertError } = await supabase.from("groups").upsert(
+      { user_id: session.user.id, name: groupName, photo_url: publicUrl },
+      { onConflict: "user_id,name" }
+    );
+    if (upsertError) {
+      console.error("[Group photo] Groups upsert error:", upsertError);
+      setUploadingPhoto(false);
+      return;
+    }
+    console.log("[Group photo] Groups upsert success");
+
+    setGroupPhoto(publicUrl);
+    setUploadingPhoto(false);
+    console.log("[Group photo] Done");
   };
 
   const removeMember = async (contact: Contact) => {
@@ -120,6 +165,44 @@ export default function GroupDetailPage({ params }: { params: Promise<{ name: st
       </header>
 
       <div className="max-w-lg mx-auto px-4 py-6 flex flex-col gap-4">
+
+        {/* Group avatar with photo upload */}
+        <div className="flex justify-center pb-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleGroupPhotoSelect}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingPhoto}
+            className="relative w-24 h-24 rounded-full flex items-center justify-center overflow-hidden border-2 border-[#2E2924] hover:border-[#C8A96E44] transition-colors disabled:opacity-70 flex-shrink-0 bg-[#28211A]"
+          >
+            {uploadingPhoto ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-[#141210]/80">
+                <span className="text-[#C8A96E] text-sm">...</span>
+              </div>
+            ) : groupPhoto ? (
+              <img src={groupPhoto} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-[#C8A96E] text-3xl font-semibold">
+                {groupName.charAt(0).toUpperCase()}
+              </span>
+            )}
+            {!uploadingPhoto && (
+              <div className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-[#141210] border border-[#2E2924] flex items-center justify-center">
+                <svg className="w-4 h-4 text-[#C8A96E]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 13v4a2 2 0 01-2 2H7a2 2 0 01-2-2v-4M14 12v.01" />
+                </svg>
+              </div>
+            )}
+          </button>
+        </div>
 
         <div className="flex items-center justify-between">
           <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold">

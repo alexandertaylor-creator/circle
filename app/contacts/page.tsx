@@ -51,11 +51,11 @@ function ContactsPageInner() {
       const { data } = await supabase
         .from("contacts")
         .select("id, full_name, last_contacted, interests, groups, photo_url")
-        .order("full_name")
         .limit(1000);
       const { data: interactions } = await supabase
         .from("interactions")
         .select("contact_id")
+        .eq("user_id", session.user.id)
         .limit(10000);
       if (data) {
         const countByContact = (interactions || []).reduce((acc, r) => {
