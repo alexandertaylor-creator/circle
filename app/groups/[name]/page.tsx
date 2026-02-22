@@ -181,12 +181,13 @@ export default function GroupDetailPage({ params }: { params: Promise<{ name: st
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
     setDeleting(true);
-    for (const c of allContacts) {
-      if ((c.groups || []).includes(groupName)) {
+    const contactsWithGroup = allContacts.filter(c => (c.groups || []).includes(groupName));
+    await Promise.all(
+      contactsWithGroup.map(c => {
         const newGroups = (c.groups || []).filter(g => g !== groupName);
-        await supabase.from("contacts").update({ groups: newGroups }).eq("id", c.id);
-      }
-    }
+        return supabase.from("contacts").update({ groups: newGroups }).eq("id", c.id);
+      })
+    );
     await supabase.from("groups").delete().eq("user_id", session.user.id).eq("name", groupName);
     setDeleting(false);
     setShowDeleteConfirm(false);

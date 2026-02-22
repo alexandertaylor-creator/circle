@@ -1,6 +1,9 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+
+const SUGGESTION_CHIPS = ["Work", "Family", "Best Friends", "Workout Buddies", "College Friends", "Neighbors"];
 
 export function BottomNav() {
   const router = useRouter();
@@ -8,7 +11,17 @@ export function BottomNav() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
+  const [existingGroupNames, setExistingGroupNames] = useState<string[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      const { data: contacts } = await supabase.from("contacts").select("groups").limit(1000);
+      const names = [...new Set((contacts || []).flatMap(c => c.groups || []))];
+      setExistingGroupNames(names);
+    };
+    load();
+  }, []);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -25,6 +38,11 @@ export function BottomNav() {
   const isGroups = pathname?.startsWith("/groups");
   const isEvents = pathname === "/events";
   const isPeople = pathname === "/contacts" || pathname?.startsWith("/contacts/");
+
+  const availableChips = SUGGESTION_CHIPS.filter(chip =>
+    !existingGroupNames.some(g => g.toLowerCase() === chip.toLowerCase())
+  );
+  const isDuplicate = newGroupName.trim() && existingGroupNames.some(g => g.toLowerCase() === newGroupName.trim().toLowerCase());
 
   return (
     <>
@@ -98,22 +116,24 @@ export function BottomNav() {
               type="text"
               value={newGroupName}
               onChange={(e) => setNewGroupName(e.target.value)}
-              placeholder="e.g. The Boys, Work Friends, Family..."
               className="w-full bg-[#231F1B] border border-[#2E2924] rounded-xl px-4 py-3 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors mb-3"
               autoFocus
             />
-            {!newGroupName && (
+            {isDuplicate && (
+              <p className="text-amber-200/90 text-sm mb-3">A group named {newGroupName.trim()} already exists</p>
+            )}
+            {!newGroupName && availableChips.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-3">
-                {["Work", "Family", "Best Friends", "Workout Buddies", "College Friends", "Neighbors"].map(label => (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setTimeout(() => setNewGroupName(label), 0); }}
-                    className="px-2.5 py-1 rounded-full text-xs font-medium border border-[#2E2924] text-[#7A7068] hover:border-[#C8A96E44] hover:text-[#C8A96E] transition-colors"
-                  >
-                    {label}
-                  </button>
-                ))}
+                {availableChips.map(label => (
+                    <button
+                      key={label}
+                      type="button"
+                      onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setNewGroupName(label); }}
+                      className="px-2.5 py-1 rounded-full text-xs font-medium border border-[#2E2924] text-[#7A7068] hover:border-[#C8A96E44] hover:text-[#C8A96E] transition-colors"
+                    >
+                      {label}
+                    </button>
+                  ))}
               </div>
             )}
             <div className="flex gap-2">

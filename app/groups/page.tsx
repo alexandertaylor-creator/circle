@@ -9,6 +9,8 @@ type GroupSummary = {
   count: number;
 };
 
+const SUGGESTION_CHIPS = ["Work", "Family", "Best Friends", "Workout Buddies", "College Friends", "Neighbors"];
+
 export default function GroupsPage() {
   const router = useRouter();
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
@@ -59,15 +61,23 @@ export default function GroupsPage() {
     ? [...groups].sort((a, b) => b.count - a.count)
     : [...groups].sort((a, b) => a.name.localeCompare(b.name));
 
+  const existingGroupNames = groups.map(g => g.name);
+  const availableChips = SUGGESTION_CHIPS.filter(chip =>
+    !existingGroupNames.some(g => g.toLowerCase() === chip.toLowerCase())
+  );
+  const isDuplicate = newGroupName.trim() && existingGroupNames.some(g => g.toLowerCase() === newGroupName.trim().toLowerCase());
+
   const handleDeleteGroup = async (groupName: string) => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
     setDeletingGroup(groupName);
     const contactsWithGroup = contacts.filter(c => (c.groups || []).includes(groupName));
-    for (const c of contactsWithGroup) {
-      const newGroups = (c.groups || []).filter(g => g !== groupName);
-      await supabase.from("contacts").update({ groups: newGroups }).eq("id", c.id);
-    }
+    await Promise.all(
+      contactsWithGroup.map(c => {
+        const newGroups = (c.groups || []).filter(g => g !== groupName);
+        return supabase.from("contacts").update({ groups: newGroups }).eq("id", c.id);
+      })
+    );
     await supabase.from("groups").delete().eq("user_id", session.user.id).eq("name", groupName);
     setGroups(prev => prev.filter(g => g.name !== groupName));
     setDeleteConfirmGroup(null);
@@ -121,7 +131,7 @@ export default function GroupsPage() {
                     <button
                       type="button"
                       onClick={() => handleDeleteGroup(group.name)}
-                      disabled={deletingGroup === group.name}
+                      disabled={!!deletingGroup}
                       className="flex-1 py-2 bg-red-900/60 text-red-200 rounded-lg text-sm font-semibold hover:bg-red-900/80 transition-colors disabled:opacity-60"
                     >
                       {deletingGroup === group.name ? "Deleting..." : "Confirm"}
@@ -146,8 +156,9 @@ export default function GroupsPage() {
                   <div className="text-xs text-[#7A7068] flex-shrink-0">{group.count} {group.count === 1 ? "person" : "people"}</div>
                   <button
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); setDeleteConfirmGroup(group.name); }}
-                    className="flex-shrink-0 p-1.5 rounded-lg text-red-400/90 hover:bg-red-900/20 hover:text-red-300 transition-colors"
+                    onClick={(e) => { e.stopPropagation(); if (!deletingGroup) setDeleteConfirmGroup(group.name); }}
+                    disabled={!!deletingGroup}
+                    className="flex-shrink-0 p-1.5 rounded-lg text-red-400/90 hover:bg-red-900/20 hover:text-red-300 transition-colors disabled:opacity-50 disabled:pointer-events-none"
                     aria-label="Delete group"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -175,17 +186,19 @@ export default function GroupsPage() {
               type="text"
               value={newGroupName}
               onChange={(e) => setNewGroupName(e.target.value)}
-              placeholder="e.g. The Boys, Work Friends, Family..."
               className="w-full bg-[#231F1B] border border-[#2E2924] rounded-xl px-4 py-3 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors mb-3"
               autoFocus
             />
-            {!newGroupName && (
+            {isDuplicate && (
+              <p className="text-amber-200/90 text-sm mb-3">A group named {newGroupName.trim()} already exists</p>
+            )}
+            {!newGroupName && availableChips.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-3">
-                {["Work", "Family", "Best Friends", "Workout Buddies", "College Friends", "Neighbors"].map(label => (
+                {availableChips.map(label => (
                   <button
                     key={label}
                     type="button"
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setNewGroupName(label); }}
+                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setNewGroupName(label); }}
                     className="px-2.5 py-1 rounded-full text-xs font-medium border border-[#2E2924] text-[#7A7068] hover:border-[#C8A96E44] hover:text-[#C8A96E] transition-colors"
                   >
                     {label}
