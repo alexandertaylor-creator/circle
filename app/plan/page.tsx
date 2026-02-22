@@ -18,6 +18,7 @@ function PlanPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const appliedContactIdsRef = useRef(false);
+  const appliedGroupRef = useRef(false);
   const [step, setStep] = useState<Step>("name");
   const [eventName, setEventName] = useState("");
   const [eventDate, setEventDate] = useState("");
@@ -64,6 +65,18 @@ function PlanPageInner() {
     const validIds = ids.filter(id => contacts.some(c => c.id === id));
     setPreSelectedIds(validIds);
   }, [loading, searchParams, contacts]);
+
+  // After contacts have loaded, read group= from URL and pre-apply as active filter
+  useEffect(() => {
+    if (loading) return;
+    if (appliedGroupRef.current) return;
+    const groupParam = searchParams.get("group");
+    if (!groupParam) return;
+    appliedGroupRef.current = true;
+    const label = decodeURIComponent(groupParam);
+    if (!label) return;
+    setActiveFilters(prev => prev.some(f => f.label === label && f.kind === "group") ? prev : [...prev, { label, kind: "group" }]);
+  }, [loading, searchParams]);
 
   const filteredContacts = contacts.filter(c => {
     if (activeFilters.length === 0) return true;

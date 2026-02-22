@@ -179,6 +179,13 @@ function ContactsPageInner() {
         </button>
       </header>
       <div className="max-w-lg mx-auto px-4 py-6">
+        <button
+          onClick={() => router.push("/contacts/new")}
+          className="w-full mb-4 py-4 bg-[#C8A96E] text-[#141210] rounded-xl font-semibold text-sm hover:bg-[#D4B87E] transition-colors"
+        >
+          Add a friend
+        </button>
+
         <input
           type="text"
           placeholder="Search your people..."

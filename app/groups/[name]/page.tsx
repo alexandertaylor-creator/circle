@@ -28,6 +28,8 @@ export default function GroupDetailPage({ params }: { params: Promise<{ name: st
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [editGroupNameInput, setEditGroupNameInput] = useState("");
   const [savingRename, setSavingRename] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -175,6 +177,22 @@ export default function GroupDetailPage({ params }: { params: Promise<{ name: st
     router.push("/groups/" + encodeURIComponent(newName));
   };
 
+  const handleDeleteGroup = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    setDeleting(true);
+    for (const c of allContacts) {
+      if ((c.groups || []).includes(groupName)) {
+        const newGroups = (c.groups || []).filter(g => g !== groupName);
+        await supabase.from("contacts").update({ groups: newGroups }).eq("id", c.id);
+      }
+    }
+    await supabase.from("groups").delete().eq("user_id", session.user.id).eq("name", groupName);
+    setDeleting(false);
+    setShowDeleteConfirm(false);
+    router.push("/groups");
+  };
+
   const nonMembers = allContacts.filter(c =>
     !(c.groups || []).includes(groupName) &&
     c.full_name.toLowerCase().includes(search.toLowerCase())
@@ -264,7 +282,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ name: st
           <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold">
             {members.length} {members.length === 1 ? "person" : "people"}
           </div>
-          <button onClick={() => router.push("/plan")}
+          <button onClick={() => router.push("/plan?group=" + encodeURIComponent(groupName))}
             className="text-xs text-[#C8A96E] hover:text-[#D4B87E] transition-colors">
             Plan something
           </button>
@@ -321,7 +339,50 @@ export default function GroupDetailPage({ params }: { params: Promise<{ name: st
             </div>
           </div>
         )}
+
+        {adding && (
+          <button
+            type="button"
+            onClick={() => setShowDeleteConfirm(true)}
+            className="mt-6 w-full py-3 rounded-xl font-semibold text-sm border border-red-900/60 text-red-400/90 hover:bg-red-900/20 hover:text-red-300 transition-colors"
+          >
+            Delete group
+          </button>
+        )}
       </div>
+
+      {showDeleteConfirm && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowDeleteConfirm(false); }}
+        >
+          <div
+            className="w-full max-w-sm bg-[#1C1916] border border-[#2E2924] rounded-2xl shadow-lg p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-sm text-[#F0E6D3] mb-4">
+              This will remove this group tag from all members. Are you sure?
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 py-2 border border-[#2E2924] text-[#7A7068] rounded-lg text-sm hover:text-[#F0E6D3] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteGroup}
+                disabled={deleting}
+                className="flex-1 py-2 bg-red-900/60 text-red-200 rounded-lg text-sm font-semibold hover:bg-red-900/80 transition-colors disabled:opacity-60"
+              >
+                {deleting ? "Deleting..." : "Confirm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <BottomNav />
     </main>

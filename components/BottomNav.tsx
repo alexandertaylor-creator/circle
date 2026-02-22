@@ -87,21 +87,35 @@ export function BottomNav() {
       {showCreateGroupModal && (
         <div
           className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4"
-          onClick={() => { setShowCreateGroupModal(false); setNewGroupName(""); }}
+          onClick={(e) => { if (e.target === e.currentTarget) { setShowCreateGroupModal(false); setNewGroupName(""); } }}
         >
           <div
             className="w-full max-w-sm bg-[#1C1916] border border-[#2E2924] rounded-2xl shadow-lg p-4"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); }}
           >
             <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold mb-3">Create group</div>
             <input
               type="text"
               value={newGroupName}
               onChange={(e) => setNewGroupName(e.target.value)}
-              placeholder="Group name"
-              className="w-full bg-[#231F] border border-[#2E2924] rounded-xl px-4 py-3 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors mb-3"
+              placeholder="e.g. The Boys, Work Friends, Family..."
+              className="w-full bg-[#231F1B] border border-[#2E2924] rounded-xl px-4 py-3 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors mb-3"
               autoFocus
             />
+            {!newGroupName && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {["Work", "Family", "Best Friends", "Workout Buddies", "College Friends", "Neighbors"].map(label => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setTimeout(() => setNewGroupName(label), 0); }}
+                    className="px-2.5 py-1 rounded-full text-xs font-medium border border-[#2E2924] text-[#7A7068] hover:border-[#C8A96E44] hover:text-[#C8A96E] transition-colors"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="flex gap-2">
               <button
                 type="button"
