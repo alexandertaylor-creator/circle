@@ -30,7 +30,7 @@ export default function DashboardPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/auth"); return; }
       const [{ data: profile }, { data }, { data: groupsRows }] = await Promise.all([
-        supabase.from("profiles").select("display_name, avatar_url").eq("id", session.user.id).single(),
+        supabase.from("profiles").select("display_name, avatar_url, interests").eq("id", session.user.id).single(),
         supabase.from("contacts").select("id, full_name, last_contacted, interests, groups, photo_url").order("full_name").limit(1000),
         supabase.from("groups").select("name, photo_url").eq("user_id", session.user.id),
       ]);
@@ -50,7 +50,9 @@ export default function DashboardPage() {
         .limit(10000);
       if (data) {
         setContacts(data);
-        setAllInterests(Array.from(new Set(data.flatMap(c => c.interests || []))).sort());
+        const fromContacts = data.flatMap(c => c.interests || []);
+        const fromProfile = Array.isArray(profile?.interests) ? profile.interests : [];
+        setAllInterests(Array.from(new Set([...fromContacts, ...fromProfile])).sort());
         setAllGroups(Array.from(new Set(data.flatMap(c => c.groups || []))).sort());
         const countByContact = (interactions || []).reduce((acc, r) => {
           acc[r.contact_id] = (acc[r.contact_id] || 0) + 1;
@@ -62,6 +64,8 @@ export default function DashboardPage() {
           .slice(0, 3)
           .map(([id]) => id);
         setTopFriends(topIds.map(id => data.find(c => c.id === id)).filter(Boolean) as Contact[]);
+      } else if (Array.isArray(profile?.interests) && profile.interests.length > 0) {
+        setAllInterests(Array.from(new Set(profile.interests)).sort());
       }
       setLoading(false);
     };

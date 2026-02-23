@@ -170,6 +170,7 @@ function ContactsPageInner() {
     <main className="min-h-screen bg-[#141210] text-[#F0E6D3] pb-24">
       <header className="flex items-center justify-between px-6 py-5 border-b border-[#2E2924] sticky top-0 bg-[#141210] z-10">
         <button onClick={() => router.push("/dashboard")} className="font-serif italic text-[#C8A96E] text-xl">circle</button>
+        <span className="text-sm text-[#7A7068]">People</span>
         <button onClick={() => router.push("/profile")} className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#C8A96E] text-[#141210] text-sm font-bold">
           {userAvatarUrl ? (
             <img src={userAvatarUrl} alt="" className="w-full h-full object-cover" />

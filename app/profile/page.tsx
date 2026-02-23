@@ -20,6 +20,9 @@ export default function ProfilePage() {
   const [reconnectNudges, setReconnectNudges] = useState(true);
   const [eventReminders, setEventReminders] = useState(true);
   const [showSavedMessage, setShowSavedMessage] = useState(false);
+  const [profileInterests, setProfileInterests] = useState<string[]>([]);
+  const [contactsInterests, setContactsInterests] = useState<string[]>([]);
+  const [interestInput, setInterestInput] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -32,14 +35,18 @@ export default function ProfilePage() {
       setUserId(session.user.id);
       setEmail(session.user.email ?? "");
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("display_name, avatar_url")
-        .eq("id", session.user.id)
-        .single();
+      const [{ data: profile }, { data: contactsData }] = await Promise.all([
+        supabase.from("profiles").select("display_name, avatar_url, interests").eq("id", session.user.id).single(),
+        supabase.from("contacts").select("interests").limit(1000),
+      ]);
       if (profile) {
         setDisplayName(profile.display_name ?? "");
         setAvatarUrl(profile.avatar_url ?? "");
+        setProfileInterests(Array.isArray(profile.interests) ? profile.interests : []);
+      }
+      if (contactsData) {
+        const fromContacts = Array.from(new Set((contactsData as { interests: string[] | null }[]).flatMap((c) => c.interests || []))).sort();
+        setContactsInterests(fromContacts);
       }
 
       try {
@@ -55,6 +62,13 @@ export default function ProfilePage() {
     };
     init();
   }, [router]);
+
+  const saveInterestsToServer = async (updatedInterests: string[]) => {
+    if (!userId) return;
+    await supabase.from("profiles").update({ interests: updatedInterests }).eq("id", userId);
+    setShowSavedMessage(true);
+    setTimeout(() => setShowSavedMessage(false), 1000);
+  };
 
   const getInitials = () => {
     if (displayName.trim()) {
@@ -126,6 +140,28 @@ export default function ProfilePage() {
     try {
       localStorage.setItem(STORAGE_EVENT_REMINDERS, String(value));
     } catch (_) {}
+  };
+
+  const combinedInterests = (() => {
+    const set = new Map<string, string>();
+    contactsInterests.forEach((i) => set.set(i.toLowerCase(), i));
+    profileInterests.forEach((i) => set.set(i.toLowerCase(), i));
+    return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
+  })();
+
+  const addProfileInterest = (val: string) => {
+    const clean = val.trim();
+    if (!clean || profileInterests.some((p) => p.toLowerCase() === clean.toLowerCase())) return;
+    const updated = [...profileInterests, clean];
+    setProfileInterests(updated);
+    setInterestInput("");
+    saveInterestsToServer(updated);
+  };
+
+  const removeProfileInterest = (tag: string) => {
+    const updated = profileInterests.filter((p) => p.toLowerCase() !== tag.toLowerCase());
+    setProfileInterests(updated);
+    saveInterestsToServer(updated);
   };
 
   if (loading) {
@@ -222,6 +258,43 @@ export default function ProfilePage() {
               </button>
             </div>
           )}
+        </div>
+
+        {/* Your interests */}
+        <div className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4">
+          <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold mb-3">Your interests</div>
+          {combinedInterests.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {combinedInterests.map((tag) => (
+                <span
+                  key={tag}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#28211A] border border-[#C8A96E44] text-[#C8A96E] text-xs"
+                >
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => removeProfileInterest(tag)}
+                    className="text-[#C8A96E] hover:text-white transition-colors leading-none"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <input
+            type="text"
+            placeholder="Add an interest..."
+            value={interestInput}
+            onChange={(e) => setInterestInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === ",") {
+                e.preventDefault();
+                addProfileInterest(interestInput);
+              }
+            }}
+            className="w-full bg-[#231F1B] border border-[#2E2924] rounded-lg px-3 py-2 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors"
+          />
         </div>
 
         {/* Email (read only) */}

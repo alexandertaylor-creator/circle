@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, useRef, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -39,16 +39,21 @@ function PlanPageInner() {
         router.push("/auth");
         return;
       }
-      const { data } = await supabase
-        .from("contacts")
-        .select("id, full_name, last_contacted, interests, groups, photo_url")
-        .order("full_name")
-        .limit(1000);
-      if (data) {
-        setContacts(data);
-        setAllInterests(Array.from(new Set(data.flatMap(c => c.interests || []))).sort());
-        setAllGroups(Array.from(new Set(data.flatMap(c => c.groups || []))).sort());
+      const [{ data: contactsData }, { data: profileData }] = await Promise.all([
+        supabase
+          .from("contacts")
+          .select("id, full_name, last_contacted, interests, groups, photo_url")
+          .order("full_name")
+          .limit(1000),
+        supabase.from("profiles").select("interests").eq("id", session.user.id).maybeSingle(),
+      ]);
+      if (contactsData) {
+        setContacts(contactsData);
+        setAllGroups(Array.from(new Set(contactsData.flatMap(c => c.groups || []))).sort());
       }
+      const fromContacts = contactsData ? contactsData.flatMap(c => c.interests || []) : [];
+      const fromProfiles = Array.isArray(profileData?.interests) ? profileData.interests : [];
+      setAllInterests(Array.from(new Set([...fromContacts, ...fromProfiles])).sort());
       setLoading(false);
     };
     load();
@@ -101,6 +106,22 @@ function PlanPageInner() {
   }, [step, filteredContacts, preSelectedIds]);
 
   const selectedContacts = contacts.filter(c => selected.includes(c.id));
+
+  // Top 8 interests by how many contacts have them (most shared first)
+  const topInterestsByPopularity = useMemo(() => {
+    if (contacts.length === 0 || allInterests.length === 0) return [];
+    return [...allInterests]
+      .sort((a, b) => {
+        const countA = contacts.filter(c =>
+          (c.interests || []).some(i => i.toLowerCase() === a.toLowerCase())
+        ).length;
+        const countB = contacts.filter(c =>
+          (c.interests || []).some(i => i.toLowerCase() === b.toLowerCase())
+        ).length;
+        return countB - countA;
+      })
+      .slice(0, 8);
+  }, [contacts, allInterests]);
 
   const getInitials = (name: string) =>
     name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
@@ -198,9 +219,9 @@ function PlanPageInner() {
               <div className="font-serif text-2xl text-[#F0E6D3] mb-1">What are you planning?</div>
               <div className="text-sm text-[#7A7068]">Give your event a name and optional date.</div>
             </div>
-            {allInterests.length > 0 && (
+            {topInterestsByPopularity.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-2">
-                {allInterests.slice(0, 6).map(interest => (
+                {topInterestsByPopularity.map(interest => (
                   <button
                     key={interest}
                     type="button"

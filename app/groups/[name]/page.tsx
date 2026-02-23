@@ -208,7 +208,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ name: st
   return (
     <main className="min-h-screen bg-[#141210] text-[#F0E6D3] pb-24">
       <header className="flex items-center justify-between px-6 py-5 border-b border-[#2E2924] sticky top-0 bg-[#141210] z-10">
-        <button onClick={() => router.push("/groups")} className="text-sm text-[#7A7068] hover:text-[#F0E6D3] transition-colors">
+        <button onClick={() => router.push(adding ? "/dashboard" : "/groups")} className="text-sm text-[#7A7068] hover:text-[#F0E6D3] transition-colors">
           Back
         </button>
         {adding ? (

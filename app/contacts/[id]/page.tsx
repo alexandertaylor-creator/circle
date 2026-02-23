@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { BottomNav } from "@/components/BottomNav";
 
 type Contact = {
   id: string;
@@ -34,11 +35,14 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
   const [editMode, setEditMode] = useState(false);
   const [editGroups, setEditGroups] = useState<string[]>([]);
   const [editInterests, setEditInterests] = useState<string[]>([]);
+  const [editingGroups, setEditingGroups] = useState(false);
+  const [editingInterests, setEditingInterests] = useState(false);
   const [groupInput, setGroupInput] = useState("");
   const [interestInput, setInterestInput] = useState("");
   const [allGroups, setAllGroups] = useState<string[]>([]);
   const [allInterests, setAllInterests] = useState<string[]>([]);
-  const [savingGroupsInterests, setSavingGroupsInterests] = useState(false);
+  const [savingGroups, setSavingGroups] = useState(false);
+  const [savingInterests, setSavingInterests] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -65,8 +69,12 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
   const [savingInteractionEdit, setSavingInteractionEdit] = useState(false);
   const [confirmDeleteInteractionId, setConfirmDeleteInteractionId] = useState<string | null>(null);
   const [deletingInteractionId, setDeletingInteractionId] = useState<string | null>(null);
+  const [userAvatarUrl, setUserAvatarUrl] = useState("");
+  const [userDisplayName, setUserDisplayName] = useState("");
+  const [interactionsShown, setInteractionsShown] = useState(10);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const INTERACTIONS_PAGE_SIZE = 10;
   const INTERACTION_TYPES = [
     { label: "Hung out", value: "hangout" },
     { label: "Called", value: "call" },
@@ -79,10 +87,11 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/auth"); return; }
-      const [{ data }, { data: interactionsData }, { data: allData }] = await Promise.all([
+      const [{ data }, { data: interactionsData }, { data: allData }, { data: profileData }] = await Promise.all([
         supabase.from("contacts").select("id, full_name, last_contacted, notes, interests, groups, created_at, photo_url, dob, phone").eq("id", id).single(),
         supabase.from("interactions").select("id, type, occurred_on, note").eq("contact_id", id).order("occurred_on", { ascending: false }),
         supabase.from("contacts").select("interests, groups").limit(1000),
+        supabase.from("profiles").select("interests, avatar_url, display_name").eq("id", session.user.id).maybeSingle(),
       ]);
       if (data) {
         setContact(data);
@@ -90,11 +99,22 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
         setPhone(data.phone || "");
         setDobInput(data.dob ? String(data.dob) : "");
       }
-      if (interactionsData) setInteractions(interactionsData as Interaction[]);
-      if (allData) {
-        setAllGroups(Array.from(new Set(allData.flatMap(c => c.groups || []))).sort());
-        setAllInterests(Array.from(new Set(allData.flatMap(c => c.interests || []))).sort());
+      if (interactionsData) {
+        setInteractions(interactionsData as Interaction[]);
+        setInteractionsShown(INTERACTIONS_PAGE_SIZE);
       }
+      if (allData) {
+        setAllGroups(Array.from(new Set(allData.flatMap((c: { groups?: string[] | null }) => c.groups || []))).sort());
+        const fromContacts = allData.flatMap((c: { interests?: string[] | null }) => c.interests || []);
+        const fromProfiles = Array.isArray(profileData?.interests) ? profileData.interests : [];
+        setAllInterests(Array.from(new Set([...fromContacts, ...fromProfiles])).sort());
+      } else {
+        const fromProfiles = Array.isArray(profileData?.interests) ? profileData.interests : [];
+        if (fromProfiles.length > 0) setAllInterests(Array.from(new Set(fromProfiles)).sort());
+      }
+      const profile = profileData as { avatar_url?: string; display_name?: string } | null;
+      if (profile?.avatar_url) setUserAvatarUrl(profile.avatar_url);
+      if (profile?.display_name) setUserDisplayName(profile.display_name);
       setLoading(false);
     };
     load();
@@ -109,17 +129,13 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
 
   const startEditMode = () => {
     if (!contact) return;
-    setEditGroups(contact.groups ? [...contact.groups] : []);
-    setEditInterests(contact.interests ? [...contact.interests] : []);
-    setGroupInput("");
-    setInterestInput("");
     setEditMode(true);
   };
 
   const cancelEditMode = () => {
     setEditMode(false);
-    setGroupInput("");
-    setInterestInput("");
+    setEditingName(false);
+    if (contact) setNameInput(contact.full_name);
   };
 
   const addEditGroup = (val: string) => {
@@ -140,15 +156,24 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
 
   const removeEditInterest = (i: string) => setEditInterests(prev => prev.filter(x => x !== i));
 
-  const saveGroupsInterests = async () => {
+  const saveGroups = async () => {
     if (!contact) return;
-    setSavingGroupsInterests(true);
-    await supabase.from("contacts").update({ groups: editGroups, interests: editInterests }).eq("id", contact.id);
-    setContact(prev => prev ? { ...prev, groups: editGroups, interests: editInterests } : null);
-    setEditMode(false);
+    setSavingGroups(true);
+    await supabase.from("contacts").update({ groups: editGroups }).eq("id", contact.id);
+    setContact(prev => prev ? { ...prev, groups: editGroups } : null);
+    setEditingGroups(false);
     setGroupInput("");
+    setSavingGroups(false);
+  };
+
+  const saveInterests = async () => {
+    if (!contact) return;
+    setSavingInterests(true);
+    await supabase.from("contacts").update({ interests: editInterests }).eq("id", contact.id);
+    setContact(prev => prev ? { ...prev, interests: editInterests } : null);
+    setEditingInterests(false);
     setInterestInput("");
-    setSavingGroupsInterests(false);
+    setSavingInterests(false);
   };
 
   const deleteContact = async () => {
@@ -417,7 +442,7 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
   );
 
   return (
-    <main className="min-h-screen bg-[#141210] text-[#F0E6D3] pb-12">
+    <main className="min-h-screen bg-[#141210] text-[#F0E6D3] pb-24">
       <header className="flex items-center justify-between px-6 py-5 border-b border-[#2E2924] sticky top-0 bg-[#141210] z-10">
         <button
           onClick={editMode ? cancelEditMode : () => router.back()}
@@ -428,15 +453,19 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
         <button onClick={() => router.push("/dashboard")} className="font-serif italic text-[#C8A96E] text-lg">circle</button>
         {editMode ? (
           <button
-            onClick={saveGroupsInterests}
-            disabled={savingGroupsInterests}
+            onClick={saveName}
+            disabled={savingName}
             className="text-sm font-semibold text-[#C8A96E] disabled:text-[#7A7068] transition-colors"
           >
-            {savingGroupsInterests ? "Saving..." : "Save"}
+            {savingName ? "Saving..." : "Save"}
           </button>
         ) : (
-          <button onClick={startEditMode} className="text-sm text-[#C8A96E] hover:text-[#D4B87E] transition-colors">
-            Edit
+          <button onClick={() => router.push("/profile")} className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#C8A96E] text-[#141210] text-sm font-bold">
+            {userAvatarUrl ? (
+              <img src={userAvatarUrl} alt="" className="w-full h-full object-cover" />
+            ) : (
+              (userDisplayName || "?")[0].toUpperCase()
+            )}
           </button>
         )}
       </header>
@@ -482,7 +511,7 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
             )}
           </button>
           <div className="text-center w-full">
-            {editingName ? (
+            {editMode && editingName ? (
               <div className="flex flex-col items-center gap-2">
                 <input
                   type="text"
@@ -508,15 +537,17 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
               <div className="flex flex-col items-center gap-1">
                 <div className="flex items-center justify-center gap-2">
                   <div className="font-serif text-2xl text-[#F0E6D3]">{contact.full_name}</div>
-                  <button
-                    onClick={() => { setEditingName(true); setNameInput(contact.full_name); }}
-                    className="p-1.5 rounded-lg text-[#7A7068] hover:text-[#C8A96E] hover:bg-[#28211A] transition-colors"
-                    aria-label="Edit name"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                    </svg>
-                  </button>
+                  {editMode && (
+                    <button
+                      onClick={() => { setEditingName(true); setNameInput(contact.full_name); }}
+                      className="p-1.5 rounded-lg text-[#7A7068] hover:text-[#C8A96E] hover:bg-[#28211A] transition-colors"
+                      aria-label="Edit name"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
                 <div className="text-sm text-[#7A7068]">{lastContactedLabel()} {getLastSeen(contact.last_contacted)}</div>
               </div>
@@ -603,8 +634,15 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
 
         {/* Groups */}
         <div className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4">
-          <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold mb-3">Groups</div>
-          {editMode ? (
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold">Groups</div>
+            {!editingGroups && (
+              <button onClick={() => { setEditGroups(contact.groups ? [...contact.groups] : []); setEditingGroups(true); setGroupInput(""); }} className="text-xs text-[#C8A96E] hover:text-[#D4B87E] transition-colors">
+                Edit
+              </button>
+            )}
+          </div>
+          {editingGroups ? (
             <>
               <div className="flex flex-wrap gap-2 mb-3">
                 {editGroups.map(g => (
@@ -638,6 +676,41 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
                   </div>
                 )}
               </div>
+              {allGroups.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {allGroups.map(g => {
+                    const selected = editGroups.some(eg => eg.toLowerCase() === g.toLowerCase());
+                    return (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => {
+                          const inList = editGroups.find(eg => eg.toLowerCase() === g.toLowerCase());
+                          if (inList) removeEditGroup(inList);
+                          else addEditGroup(g);
+                        }}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all capitalize ${
+                          selected
+                            ? "border-[#C8A96E] text-[#C8A96E] bg-[#28211A]"
+                            : "border-[#2E2924] text-[#7A7068] hover:border-[#C8A96E44] hover:text-[#C8A96E]"
+                        }`}
+                      >
+                        {g}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="flex gap-2 mt-3">
+                <button onClick={saveGroups} disabled={savingGroups}
+                  className="flex-1 py-2 bg-[#C8A96E] text-[#141210] rounded-lg text-sm font-semibold hover:bg-[#D4B87E] transition-colors disabled:opacity-60">
+                  {savingGroups ? "Saving..." : "Save"}
+                </button>
+                <button onClick={() => { setEditingGroups(false); setGroupInput(""); }} disabled={savingGroups}
+                  className="flex-1 py-2 border border-[#2E2924] text-[#7A7068] rounded-lg text-sm hover:text-[#F0E6D3] transition-colors">
+                  Cancel
+                </button>
+              </div>
             </>
           ) : (
             <div className="flex flex-wrap gap-2">
@@ -652,8 +725,15 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
 
         {/* Interests */}
         <div className="bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4">
-          <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold mb-3">Interests</div>
-          {editMode ? (
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold">Interests</div>
+            {!editingInterests && (
+              <button onClick={() => { setEditInterests(contact.interests ? [...contact.interests] : []); setEditingInterests(true); setInterestInput(""); }} className="text-xs text-[#C8A96E] hover:text-[#D4B87E] transition-colors">
+                Edit
+              </button>
+            )}
+          </div>
+          {editingInterests ? (
             <>
               <div className="flex flex-wrap gap-2 mb-3">
                 {editInterests.map(i => (
@@ -686,6 +766,41 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
                     )}
                   </div>
                 )}
+              </div>
+              {allInterests.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {allInterests.map(i => {
+                    const selected = editInterests.some(ei => ei.toLowerCase() === i.toLowerCase());
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => {
+                          const inList = editInterests.find(ei => ei.toLowerCase() === i.toLowerCase());
+                          if (inList) removeEditInterest(inList);
+                          else addEditInterest(i);
+                        }}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all capitalize ${
+                          selected
+                            ? "border-[#C8A96E] text-[#C8A96E] bg-[#28211A]"
+                            : "border-[#2E2924] text-[#7A7068] hover:border-[#C8A96E44] hover:text-[#C8A96E]"
+                        }`}
+                      >
+                        {i}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="flex gap-2 mt-3">
+                <button onClick={saveInterests} disabled={savingInterests}
+                  className="flex-1 py-2 bg-[#C8A96E] text-[#141210] rounded-lg text-sm font-semibold hover:bg-[#D4B87E] transition-colors disabled:opacity-60">
+                  {savingInterests ? "Saving..." : "Save"}
+                </button>
+                <button onClick={() => { setEditingInterests(false); setInterestInput(""); }} disabled={savingInterests}
+                  className="flex-1 py-2 border border-[#2E2924] text-[#7A7068] rounded-lg text-sm hover:text-[#F0E6D3] transition-colors">
+                  Cancel
+                </button>
               </div>
             </>
           ) : (
@@ -826,7 +941,7 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
             <div className="text-sm text-[#7A7068]">No interactions yet. Log one above.</div>
           ) : (
             <div className="flex flex-col gap-2">
-              {interactions.map((row, idx) => (
+              {interactions.slice(0, interactionsShown).map((row, idx) => (
                 <div key={row.id ?? `${row.occurred_on}-${row.type}-${idx}`} className="border-b border-[#2E2924] last:border-0 last:pb-0 first:pt-0 py-2">
                   {confirmDeleteInteractionId === row.id ? (
                     <div className="flex flex-col gap-2 py-1">
@@ -924,6 +1039,14 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
                   )}
                 </div>
               ))}
+              {interactions.length > interactionsShown && (
+                <button
+                  onClick={() => setInteractionsShown(prev => Math.min(prev + INTERACTIONS_PAGE_SIZE, interactions.length))}
+                  className="py-2 text-sm text-[#C8A96E] hover:text-[#D4B87E] font-medium transition-colors"
+                >
+                  Load more
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -932,6 +1055,16 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
         <div className="text-center text-xs text-[#3A3530]">
           Added {new Date(contact.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
         </div>
+
+        {/* Edit button */}
+        {!editMode ? (
+          <button
+            onClick={startEditMode}
+            className="w-full py-3 border border-[#C8A96E] text-[#C8A96E] rounded-xl text-sm font-semibold hover:bg-[#C8A96E22] transition-colors"
+          >
+            Edit
+          </button>
+        ) : null}
 
         {/* Delete contact */}
         <div className="pt-4">
@@ -965,6 +1098,8 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
           )}
         </div>
       </div>
+
+      <BottomNav />
     </main>
   );
 }

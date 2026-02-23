@@ -115,13 +115,19 @@ export default function NewContactPage() {
   }, [router]);
 
   const loadExisting = async () => {
-    const { data } = await supabase.from("contacts").select("id, full_name, interests, groups").limit(1000);
-    if (data) {
-      setExistingContacts(data.map(c => ({ id: c.id, full_name: c.full_name || "" })));
-      const allI = Array.from(new Set(data.flatMap(c => c.interests || []))).sort();
-      const allG = Array.from(new Set(data.flatMap(c => c.groups || []))).sort();
-      setAllInterests(allI);
-      setAllGroups(allG);
+    const { data: { session } } = await supabase.auth.getSession();
+    const [{ data: contactsData }, { data: profileData }] = await Promise.all([
+      supabase.from("contacts").select("id, full_name, interests, groups").limit(1000),
+      session ? supabase.from("profiles").select("interests").eq("id", session.user.id).maybeSingle() : Promise.resolve({ data: null }),
+    ]);
+    if (contactsData) {
+      setExistingContacts(contactsData.map(c => ({ id: c.id, full_name: c.full_name || "" })));
+      const fromContacts = contactsData.flatMap(c => c.interests || []);
+      const fromProfiles = (Array.isArray(profileData?.interests) ? profileData.interests : []) as string[];
+      setAllInterests(Array.from(new Set([...fromContacts, ...fromProfiles])).sort());
+      setAllGroups(Array.from(new Set(contactsData.flatMap(c => c.groups || []))).sort());
+    } else if (Array.isArray(profileData?.interests) && profileData.interests.length > 0) {
+      setAllInterests(Array.from(new Set(profileData.interests as string[])).sort());
     }
   };
 
