@@ -46,20 +46,20 @@ export function BottomNav() {
 
   return (
     <>
-      <div className="fixed bottom-0 left-0 right-0 bg-[#141210] border-t border-[#2E2924] flex items-center justify-around px-4 py-4">
-        <button onClick={() => router.push("/dashboard")} className="flex flex-col items-center gap-1">
-          <span className={`text-lg ${isHome ? "text-[#C8A96E]" : "text-[#7A7068]"}`}>⌂</span>
-          <span className={`text-xs ${isHome ? "text-[#C8A96E]" : "text-[#7A7068]"}`}>Home</span>
+      <div className="fixed bottom-0 left-0 right-0 bg-[#141210] border-t border-[#2E2924] flex items-center justify-around w-full max-w-full px-1 py-2 sm:px-4 sm:py-4 min-w-0">
+        <button onClick={() => router.push("/dashboard")} className="flex flex-col items-center gap-0.5 min-w-0 flex-1 flex-shrink-0 basis-0">
+          <span className={`text-base sm:text-lg ${isHome ? "text-[#C8A96E]" : "text-[#7A7068]"}`}>⌂</span>
+          <span className={`text-[10px] sm:text-xs truncate max-w-full ${isHome ? "text-[#C8A96E]" : "text-[#7A7068]"}`}>Home</span>
         </button>
-        <button onClick={() => router.push("/groups")} className="flex flex-col items-center gap-1">
-          <span className={`text-lg ${isGroups ? "text-[#C8A96E]" : "text-[#7A7068]"}`}>◉</span>
-          <span className={`text-xs ${isGroups ? "text-[#C8A96E]" : "text-[#7A7068]"}`}>Groups</span>
+        <button onClick={() => router.push("/groups")} className="flex flex-col items-center gap-0.5 min-w-0 flex-1 flex-shrink-0 basis-0">
+          <span className={`text-base sm:text-lg ${isGroups ? "text-[#C8A96E]" : "text-[#7A7068]"}`}>◉</span>
+          <span className={`text-[10px] sm:text-xs truncate max-w-full ${isGroups ? "text-[#C8A96E]" : "text-[#7A7068]"}`}>Groups</span>
         </button>
-        <div className="relative" ref={menuRef}>
+        <div className="relative flex-shrink-0 flex items-center justify-center flex-1 basis-0 min-w-0" ref={menuRef}>
           <button
             type="button"
             onClick={() => setMenuOpen((prev) => !prev)}
-            className="w-112 bg-[#C8A96E] rounded-full text-[#141210] text-2xl font-light flex items-center justify-center shadow-lg hover:bg-[#D4B87E] transition-colors"
+            className="w-10 h-10 sm:w-12 sm:h-12 bg-[#C8A96E] rounded-full text-[#141210] text-xl sm:text-2xl font-light flex items-center justify-center shadow-lg hover:bg-[#D4B87E] transition-colors"
           >
             +
           </button>
@@ -92,13 +92,13 @@ export function BottomNav() {
             </div>
           )}
         </div>
-        <button onClick={() => router.push("/events")} className="flex flex-col items-center gap-1">
-          <span className={`text-lg ${isEvents ? "text-[#C8A96E]" : "text-[#7A7068]"}`}>◈</span>
-          <span className={`text-xs ${isEvents ? "text-[#C8A96E]" : "text-[#7A7068]"}`}>Events</span>
+        <button onClick={() => router.push("/events")} className="flex flex-col items-center gap-0.5 min-w-0 flex-1 flex-shrink-0 basis-0">
+          <span className={`text-base sm:text-lg ${isEvents ? "text-[#C8A96E]" : "text-[#7A7068]"}`}>◈</span>
+          <span className={`text-[10px] sm:text-xs truncate max-w-full ${isEvents ? "text-[#C8A96E]" : "text-[#7A7068]"}`}>Events</span>
         </button>
-        <button onClick={() => router.push("/contacts")} className="flex flex-col items-center gap-1">
-          <span className={`text-lg ${isPeople ? "text-[#C8A96E]" : "text-[#7A7068]"}`}>◎</span>
-          <span className={`text-xs ${isPeople ? "text-[#C8A96E]" : "text-[#7A7068]"}`}>People</span>
+        <button onClick={() => router.push("/contacts")} className="flex flex-col items-center gap-0.5 min-w-0 flex-1 flex-shrink-0 basis-0">
+          <span className={`text-base sm:text-lg ${isPeople ? "text-[#C8A96E]" : "text-[#7A7068]"}`}>◎</span>
+          <span className={`text-[10px] sm:text-xs truncate max-w-full ${isPeople ? "text-[#C8A96E]" : "text-[#7A7068]"}`}>People</span>
         </button>
       </div>
 
