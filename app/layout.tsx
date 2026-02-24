@@ -1,7 +1,4 @@
-"use client";
-import { useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import type { ReactNode } from "react";
 import "./globals.css";
 
 export const viewport = {
@@ -11,18 +8,7 @@ export const viewport = {
   userScalable: false,
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
-  const pathname = usePathname();
-
-  useEffect(() => {
-    supabase.auth.onAuthStateChange((event, session) => {
-      if (!session && pathname !== "/auth") {
-        router.push("/auth");
-      }
-    });
-  }, [pathname, router]);
-
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <head>
