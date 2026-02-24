@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import "./globals.css";
 
 export const viewport = {
-  width: "device-width",
+  width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
