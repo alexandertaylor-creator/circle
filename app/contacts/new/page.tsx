@@ -209,6 +209,7 @@ export default function NewContactPage() {
     if (!fullName || !userId) return;
     setLoading(true);
     const phoneDigits = phone.replace(/\D/g, "").trim();
+    const normalizedInterests = interests.map(i => i.toLowerCase());
     const { error } = await supabase.from("contacts").insert({
       user_id: userId,
       full_name: fullName,
@@ -216,7 +217,7 @@ export default function NewContactPage() {
       dob: dob || null,
       phone: phoneDigits || null,
       notes: notes.trim() || null,
-      interests,
+      interests: normalizedInterests,
       groups,
     });
     if (!error) {

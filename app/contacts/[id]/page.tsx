@@ -169,8 +169,9 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
   const saveInterests = async () => {
     if (!contact) return;
     setSavingInterests(true);
-    await supabase.from("contacts").update({ interests: editInterests }).eq("id", contact.id);
-    setContact(prev => prev ? { ...prev, interests: editInterests } : null);
+    const normalizedInterests = editInterests.map(i => i.toLowerCase());
+    await supabase.from("contacts").update({ interests: normalizedInterests }).eq("id", contact.id);
+    setContact(prev => prev ? { ...prev, interests: normalizedInterests } : null);
     setEditingInterests(false);
     setInterestInput("");
     setSavingInterests(false);
