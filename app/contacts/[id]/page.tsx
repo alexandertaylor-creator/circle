@@ -121,10 +121,10 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
   }, [id, router]);
 
   const groupSuggestions = !groupInput.trim() ? [] : allGroups.filter(
-    g => g.toLowerCase().includes(groupInput.toLowerCase()) && !editGroups.includes(g)
+    g => g.toLowerCase().includes(groupInput.toLowerCase()) && !editGroups.some(eg => eg.toLowerCase() === g.toLowerCase())
   );
   const interestSuggestions = !interestInput.trim() ? [] : allInterests.filter(
-    i => i.toLowerCase().includes(interestInput.toLowerCase()) && !editInterests.includes(i)
+    i => i.toLowerCase().includes(interestInput.toLowerCase()) && !editInterests.some(ei => ei.toLowerCase() === i.toLowerCase())
   );
 
   const startEditMode = () => {
@@ -139,8 +139,10 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
   };
 
   const addEditGroup = (val: string) => {
-    const clean = val.trim().toLowerCase();
-    if (!clean || editGroups.includes(clean)) return;
+    const clean = val.trim();
+    if (!clean) return;
+    const lower = clean.toLowerCase();
+    if (editGroups.some(g => g.toLowerCase() === lower)) return;
     setEditGroups(prev => [...prev, clean]);
     setGroupInput("");
   };
@@ -148,8 +150,10 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
   const removeEditGroup = (g: string) => setEditGroups(prev => prev.filter(x => x !== g));
 
   const addEditInterest = (val: string) => {
-    const clean = val.trim().toLowerCase();
-    if (!clean || editInterests.includes(clean)) return;
+    const clean = val.trim();
+    if (!clean) return;
+    const lower = clean.toLowerCase();
+    if (editInterests.some(i => i.toLowerCase() === lower)) return;
     setEditInterests(prev => [...prev, clean]);
     setInterestInput("");
   };
@@ -169,9 +173,8 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
   const saveInterests = async () => {
     if (!contact) return;
     setSavingInterests(true);
-    const normalizedInterests = editInterests.map(i => i.toLowerCase());
-    await supabase.from("contacts").update({ interests: normalizedInterests }).eq("id", contact.id);
-    setContact(prev => prev ? { ...prev, interests: normalizedInterests } : null);
+    await supabase.from("contacts").update({ interests: editInterests }).eq("id", contact.id);
+    setContact(prev => prev ? { ...prev, interests: editInterests } : null);
     setEditingInterests(false);
     setInterestInput("");
     setSavingInterests(false);

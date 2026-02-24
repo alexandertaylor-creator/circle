@@ -65,8 +65,7 @@ export default function ProfilePage() {
 
   const saveInterestsToServer = async (updatedInterests: string[]) => {
     if (!userId) return;
-    const normalized = updatedInterests.map((i) => i.toLowerCase());
-    await supabase.from("profiles").update({ interests: normalized }).eq("id", userId);
+    await supabase.from("profiles").update({ interests: updatedInterests }).eq("id", userId);
     setShowSavedMessage(true);
     setTimeout(() => setShowSavedMessage(false), 1000);
   };

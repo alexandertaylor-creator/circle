@@ -157,7 +157,11 @@ function PlanPageInner() {
       ? names.join(" and ")
       : names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
     const dateStr = eventDate
-      ? " on " + new Date(eventDate).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
+      ? " on " + new Date(eventDate + "T00:00:00").toLocaleDateString("en-US", {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+        })
       : "";
     return "Hey " + nameList + "! Want to join me for " + eventName + dateStr + "? Let me know if you are in!";
   };
@@ -419,6 +423,11 @@ function DoneStep({
     const save = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
+      const occurredOn =
+        eventDate && eventDate.trim()
+          ? eventDate
+          : new Date().toISOString().split("T")[0];
+
       await supabase.from("events").insert({
         user_id: session.user.id,
         name: eventName,
@@ -426,6 +435,17 @@ function DoneStep({
         event_time: eventTime || null,
         contact_ids: selectedIds,
       });
+
+      if (selectedIds.length > 0) {
+        const rows = selectedIds.map((contactId) => ({
+          user_id: session.user.id,
+          contact_id: contactId,
+          type: "event",
+          occurred_on: occurredOn,
+          note: eventName || null,
+        }));
+        await supabase.from("interactions").insert(rows);
+      }
     };
     save();
   }, [eventName, eventDate, eventTime, selectedIds]);

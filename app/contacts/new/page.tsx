@@ -46,7 +46,7 @@ function TagInput({
           }}
           className="w-full bg-[#231F1B] border border-[#2E2924] rounded-lg px-3 py-2 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors"
         />
-        {(suggestions.length > 0 || (value.trim() && !allTags.includes(value.trim().toLowerCase()))) && (
+        {(suggestions.length > 0 || (value.trim() && !allTags.some(t => t.toLowerCase() === value.trim().toLowerCase()))) && (
           <div className="absolute top-full left-0 right-0 mt-1 bg-[#231F1B] border border-[#2E2924] rounded-lg overflow-hidden z-20">
             {suggestions.map(s => (
               <button key={s} onClick={() => addTag(s)}
@@ -54,7 +54,7 @@ function TagInput({
                 {s}
               </button>
             ))}
-            {value.trim() && !allTags.includes(value.trim().toLowerCase()) && (
+            {value.trim() && !allTags.some(t => t.toLowerCase() === value.trim().toLowerCase()) && (
               <button onClick={() => addTag(value)}
                 className="w-full text-left px-3 py-2 text-sm text-[#C8A96E] hover:bg-[#28211A] transition-colors border-t border-[#2E2924]">
                 + Create "{value.trim()}"
@@ -133,16 +133,24 @@ export default function NewContactPage() {
 
   useEffect(() => {
     if (!interestInput.trim()) { setInterestSuggestions([]); return; }
-    setInterestSuggestions(allInterests.filter(t =>
-      t.toLowerCase().includes(interestInput.toLowerCase()) && !interests.includes(t)
-    ));
+    setInterestSuggestions(allInterests.filter(t => {
+      const lower = t.toLowerCase();
+      return (
+        lower.includes(interestInput.toLowerCase()) &&
+        !interests.some(i => i.toLowerCase() === lower)
+      );
+    }));
   }, [interestInput, allInterests, interests]);
 
   useEffect(() => {
     if (!groupInput.trim()) { setGroupSuggestions([]); return; }
-    setGroupSuggestions(allGroups.filter(t =>
-      t.toLowerCase().includes(groupInput.toLowerCase()) && !groups.includes(t)
-    ));
+    setGroupSuggestions(allGroups.filter(t => {
+      const lower = t.toLowerCase();
+      return (
+        lower.includes(groupInput.toLowerCase()) &&
+        !groups.some(g => g.toLowerCase() === lower)
+      );
+    }));
   }, [groupInput, allGroups, groups]);
 
   const fullNameForCheck = (firstName.trim() + " " + lastName.trim()).trim();
@@ -160,16 +168,20 @@ export default function NewContactPage() {
   }, [fullNameForCheck, existingContacts]);
 
   const addInterest = (val: string) => {
-    const clean = val.trim().toLowerCase();
-    if (!clean || interests.includes(clean)) return;
+    const clean = val.trim();
+    if (!clean) return;
+    const lower = clean.toLowerCase();
+    if (interests.some(i => i.toLowerCase() === lower)) return;
     setInterests(prev => [...prev, clean]);
     setInterestInput("");
     setInterestSuggestions([]);
   };
 
   const addGroup = (val: string) => {
-    const clean = val.trim().toLowerCase();
-    if (!clean || groups.includes(clean)) return;
+    const clean = val.trim();
+    if (!clean) return;
+    const lower = clean.toLowerCase();
+    if (groups.some(g => g.toLowerCase() === lower)) return;
     setGroups(prev => [...prev, clean]);
     setGroupInput("");
     setGroupSuggestions([]);
@@ -209,7 +221,6 @@ export default function NewContactPage() {
     if (!fullName || !userId) return;
     setLoading(true);
     const phoneDigits = phone.replace(/\D/g, "").trim();
-    const normalizedInterests = interests.map(i => i.toLowerCase());
     const { error } = await supabase.from("contacts").insert({
       user_id: userId,
       full_name: fullName,
@@ -217,7 +228,7 @@ export default function NewContactPage() {
       dob: dob || null,
       phone: phoneDigits || null,
       notes: notes.trim() || null,
-      interests: normalizedInterests,
+      interests,
       groups,
     });
     if (!error) {
@@ -339,36 +350,6 @@ export default function NewContactPage() {
             </div>
           </div>
         )}
-        <div>
-          <label className="text-xs text-[#7A7068] mb-2 block font-medium">Date of birth</label>
-          <input
-            type="date"
-            value={dob}
-            onChange={e => setDob(e.target.value)}
-            className="w-full bg-[#1C1916] border border-[#2E2924] rounded-xl px-4 py-3 text-sm text-[#F0E6D3] outline-none focus:border-[#C8A96E] transition-colors"
-          />
-        </div>
-        <div>
-          <label className="text-xs text-[#7A7068] mb-2 block font-medium">Phone number</label>
-          <input
-            type="tel"
-            placeholder="(555) 123-4567"
-            value={phone}
-            onChange={handlePhoneChange}
-            maxLength={14}
-            className="w-full bg-[#1C1916] border border-[#2E2924] rounded-xl px-4 py-3 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors"
-          />
-        </div>
-        <div>
-          <label className="text-xs text-[#7A7068] mb-2 block font-medium">Notes</label>
-          <textarea
-            placeholder="Any notes about this person..."
-            value={notes}
-            onChange={e => setNotes(e.target.value)}
-            rows={3}
-            className="w-full bg-[#1C1916] border border-[#2E2924] rounded-xl px-4 py-3 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors resize-none"
-          />
-        </div>
         <TagInput
           label="Interests"
           placeholder='e.g. padel, rockets, golf...'
@@ -385,7 +366,7 @@ export default function NewContactPage() {
             <div className="text-xs text-[#7A7068] mb-2 font-medium">Existing interests</div>
             <div className="flex flex-wrap gap-2">
               {allInterests.map(tag => {
-                const selected = interests.includes(tag);
+                const selected = interests.some(i => i.toLowerCase() === tag.toLowerCase());
                 return (
                   <button
                     key={tag}
@@ -420,7 +401,7 @@ export default function NewContactPage() {
             <div className="text-xs text-[#7A7068] mb-2 font-medium">Existing groups</div>
             <div className="flex flex-wrap gap-2">
               {allGroups.map(tag => {
-                const selected = groups.includes(tag);
+                const selected = groups.some(g => g.toLowerCase() === tag.toLowerCase());
                 return (
                   <button
                     key={tag}
@@ -439,6 +420,36 @@ export default function NewContactPage() {
             </div>
           </div>
         )}
+        <div>
+          <label className="text-xs text-[#7A7068] mb-2 block font-medium">Notes</label>
+          <textarea
+            placeholder="Any notes about this person..."
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            rows={3}
+            className="w-full bg-[#1C1916] border border-[#2E2924] rounded-xl px-4 py-3 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors resize-none"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-[#7A7068] mb-2 block font-medium">Date of birth</label>
+          <input
+            type="date"
+            value={dob}
+            onChange={e => setDob(e.target.value)}
+            className="w-full bg-[#1C1916] border border-[#2E2924] rounded-xl px-4 py-3 text-sm text-[#F0E6D3] outline-none focus:border-[#C8A96E] transition-colors"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-[#7A7068] mb-2 block font-medium">Phone number</label>
+          <input
+            type="tel"
+            placeholder="(555) 123-4567"
+            value={phone}
+            onChange={handlePhoneChange}
+            maxLength={14}
+            className="w-full bg-[#1C1916] border border-[#2E2924] rounded-xl px-4 py-3 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors"
+          />
+        </div>
         <button onClick={handleSave} disabled={!firstName.trim() || loading}
           className="w-full py-4 bg-[#C8A96E] text-[#141210] rounded-xl font-semibold text-sm hover:bg-[#D4B87E] transition-colors disabled:bg-[#2E2924] disabled:text-[#7A7068]">
           {loading ? "Saving..." : "Save friend"}
