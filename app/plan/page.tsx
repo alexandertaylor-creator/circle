@@ -31,6 +31,10 @@ function PlanPageInner() {
   const [preSelectedIds, setPreSelectedIds] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [eventPhoto, setEventPhoto] = useState("");
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -39,6 +43,7 @@ function PlanPageInner() {
         router.push("/auth");
         return;
       }
+      setUserId(session.user.id);
       const [{ data: contactsData }, { data: profileData }] = await Promise.all([
         supabase
           .from("contacts")
@@ -58,6 +63,32 @@ function PlanPageInner() {
     };
     load();
   }, [router]);
+
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setUploadingPhoto(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setUploadingPhoto(false);
+      return;
+    }
+    const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const timestamp = Date.now();
+    const path = `events/${session.user.id}/${timestamp}.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from("avatars")
+      .upload(path, file, { upsert: true });
+    if (uploadError) {
+      console.error(uploadError);
+      setUploadingPhoto(false);
+      return;
+    }
+    const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
+    setEventPhoto(urlData.publicUrl);
+    setUploadingPhoto(false);
+  };
 
   // After contacts have loaded, read contactIds from URL and store in preSelectedIds (user stays on name step)
   useEffect(() => {
@@ -190,6 +221,7 @@ function PlanPageInner() {
         selectedIds={selected}
         eventDate={eventDate}
         eventTime={eventTime}
+        eventPhoto={eventPhoto}
         onBack={() => router.push("/dashboard")}
       />
     );
@@ -222,6 +254,52 @@ function PlanPageInner() {
             <div className="mb-2">
               <div className="font-serif text-2xl text-[#F0E6D3] mb-1">What are you planning?</div>
               <div className="text-sm text-[#7A7068]">Give your event a name and optional date.</div>
+            </div>
+            <div className="flex justify-center mb-2">
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoSelect}
+              />
+              <button
+                type="button"
+                onClick={() => photoInputRef.current?.click()}
+                className="relative w-24 h-24 rounded-2xl bg-[#1C1916] border-2 border-[#2E2924] hover:border-[#C8A96E44] flex items-center justify-center overflow-hidden transition-colors"
+                disabled={uploadingPhoto}
+              >
+                {eventPhoto && !uploadingPhoto && (
+                  <img src={eventPhoto} alt="" className="w-full h-full object-cover" />
+                )}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-full bg-[#141210]/90 border border-[#2E2924] flex items-center justify-center">
+                    {uploadingPhoto ? (
+                      <span className="text-[#C8A96E] text-xs">...</span>
+                    ) : (
+                      <svg
+                        className="w-5 h-5 text-[#C8A96E]"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+                        />
+                      </svg>
+                    )}
+                  </div>
+                </div>
+              </button>
             </div>
             {topInterestsByPopularity.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-2">
@@ -401,6 +479,7 @@ function DoneStep({
   selectedIds,
   eventDate,
   eventTime,
+  eventPhoto,
   onBack,
 }: {
   message: string;
@@ -409,6 +488,7 @@ function DoneStep({
   selectedIds: string[];
   eventDate: string;
   eventTime: string;
+  eventPhoto: string;
   onBack: () => void;
 }) {
   const savedRef = useRef(false);
@@ -434,6 +514,7 @@ function DoneStep({
         event_date: eventDate || null,
         event_time: eventTime || null,
         contact_ids: selectedIds,
+        photo_url: eventPhoto || null,
       });
 
       if (selectedIds.length > 0) {
