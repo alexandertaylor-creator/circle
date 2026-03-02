@@ -35,6 +35,7 @@ function PlanPageInner() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
+  const [guestSearch, setGuestSearch] = useState("");
 
   useEffect(() => {
     const load = async () => {
@@ -114,7 +115,7 @@ function PlanPageInner() {
     setActiveFilters(prev => prev.some(f => f.label === label && f.kind === "group") ? prev : [...prev, { label, kind: "group" }]);
   }, [loading, searchParams]);
 
-  const filteredContacts = contacts.filter(c => {
+  const filteredByFilters = contacts.filter(c => {
     if (activeFilters.length === 0) return true;
     return activeFilters.every(f => {
       if (f.kind === "interest") return (c.interests || []).includes(f.label);
@@ -122,7 +123,13 @@ function PlanPageInner() {
     });
   });
 
+  const filteredContacts = filteredByFilters.filter(c => {
+    if (!guestSearch.trim()) return true;
+    return c.full_name.toLowerCase().includes(guestSearch.toLowerCase().trim());
+  });
+
   const prevStepRef = useRef<Step>("name");
+  const prevFiltersKeyRef = useRef<string>("");
   useEffect(() => {
     // Only apply initial selection when coming from name step (first time entering guests step). Going Back from message preserves selection and activeFilters.
     if (prevStepRef.current === "name" && step === "filter") {
@@ -130,11 +137,47 @@ function PlanPageInner() {
         setSelected(preSelectedIds);
         setPreSelectedIds([]);
       } else {
-        setSelected(filteredContacts.map(c => c.id));
+        setSelected(filteredByFilters.map(c => c.id));
       }
     }
     prevStepRef.current = step;
-  }, [step, filteredContacts, preSelectedIds]);
+  }, [step, filteredByFilters, preSelectedIds]);
+
+  // Keep selection in sync with filters:
+  // - When filters applied, select only matching contacts
+  // - When filters cleared, select everyone
+  useEffect(() => {
+    if (step !== "filter") return;
+
+    const key = JSON.stringify(
+      [...activeFilters].sort((a, b) =>
+        a.kind === b.kind ? a.label.localeCompare(b.label) : a.kind.localeCompare(b.kind)
+      )
+    );
+    if (prevFiltersKeyRef.current === key) return;
+    prevFiltersKeyRef.current = key;
+
+    if (activeFilters.length === 0) {
+      // No filters: select all contacts
+      setSelected(contacts.map(c => c.id));
+    } else {
+      const matchingIds = contacts
+        .filter(c =>
+          activeFilters.every(f =>
+            f.kind === "interest"
+              ? (c.interests || []).includes(f.label)
+              : (c.groups || []).includes(f.label)
+          )
+        )
+        .map(c => c.id);
+      setSelected(matchingIds);
+    }
+  }, [activeFilters, contacts, step]);
+
+  // Clear guest search whenever filters change
+  useEffect(() => {
+    setGuestSearch("");
+  }, [activeFilters]);
 
   const selectedContacts = contacts.filter(c => selected.includes(c.id));
 
@@ -390,8 +433,41 @@ function PlanPageInner() {
                 </div>
               </div>
             )}
-            <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold mb-2">
-              {selected.length} selected
+            <input
+              type="text"
+              placeholder="Search people..."
+              value={guestSearch}
+              onChange={e => setGuestSearch(e.target.value)}
+              className="w-full bg-[#1C1916] border border-[#2E2924] rounded-xl px-4 py-2.5 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors mb-2"
+            />
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold">
+                {selected.length} selected
+              </div>
+              {filteredContacts.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const visibleIds = filteredContacts.map(c => c.id);
+                    const allVisibleSelected = visibleIds.every(id => selected.includes(id));
+                    if (allVisibleSelected) {
+                      // Deselect all visible contacts
+                      setSelected(prev => prev.filter(id => !visibleIds.includes(id)));
+                    } else {
+                      // Select all visible contacts, preserving any existing selections
+                      const setIds = new Set(selected);
+                      visibleIds.forEach(id => setIds.add(id));
+                      setSelected(Array.from(setIds));
+                    }
+                  }}
+                  className="text-[11px] text-[#C8A96E] hover:text-[#D4B87E] px-2 py-1 rounded-lg hover:bg-[#231F1B] transition-colors"
+                >
+                  {filteredContacts.length > 0 &&
+                  filteredContacts.every(c => selected.includes(c.id))
+                    ? "Deselect all"
+                    : "Select all"}
+                </button>
+              )}
             </div>
             <div className="flex flex-col gap-2">
               {filteredContacts.map((contact) => (
