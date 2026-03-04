@@ -13,6 +13,14 @@ type Contact = {
   photo_url: string | null;
 };
 
+type DashboardEvent = {
+  id: string;
+  name: string;
+  event_date: string | null;
+  event_time: string | null;
+  contact_ids: string[] | null;
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -23,16 +31,20 @@ export default function DashboardPage() {
   const [userAvatarUrl, setUserAvatarUrl] = useState("");
   const [topFriends, setTopFriends] = useState<Contact[]>([]);
   const [interactionCountByContact, setInteractionCountByContact] = useState<Record<string, number>>({});
+  const [upcomingEvents, setUpcomingEvents] = useState<DashboardEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/auth"); return; }
-      const [{ data: profile }, { data }, { data: groupsRows }] = await Promise.all([
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+      const [{ data: profile }, { data }, { data: groupsRows }, { data: eventsData }] = await Promise.all([
         supabase.from("profiles").select("display_name, avatar_url, interests").eq("id", session.user.id).single(),
         supabase.from("contacts").select("id, full_name, last_contacted, interests, groups, photo_url").order("full_name").limit(1000),
         supabase.from("groups").select("name, photo_url").eq("user_id", session.user.id),
+        supabase.from("events").select("id, name, event_date, event_time, contact_ids").eq("user_id", session.user.id).gte("event_date", todayStr).order("event_date", { ascending: true }).limit(3),
       ]);
       setUserName(profile?.display_name ?? session.user.email?.split("@")[0] ?? "friend");
       if (profile?.avatar_url) setUserAvatarUrl(profile.avatar_url);
@@ -43,6 +55,7 @@ export default function DashboardPage() {
         });
         setGroupPhotos(photoMap);
       }
+      if (eventsData) setUpcomingEvents(eventsData as DashboardEvent[]);
       const { data: interactions } = await supabase
         .from("interactions")
         .select("contact_id")
@@ -70,7 +83,7 @@ export default function DashboardPage() {
       setLoading(false);
     };
     load();
-  }, [router]);
+  }, []);
 
   const getGreeting = () => {
     const h = new Date().getHours();
@@ -95,6 +108,15 @@ export default function DashboardPage() {
     if (isNaN(y) || isNaN(m) || isNaN(d)) return 999;
     const dateMidnight = new Date(y, m - 1, d).getTime();
     return Math.floor((todayMidnight - dateMidnight) / 86400000);
+  };
+
+  const formatEventDate = (date: string | null) => {
+    if (!date) return "";
+    return new Date(date + "T00:00:00").toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
   };
 
   const getLastSeen = (date: string | null) => {
@@ -125,8 +147,8 @@ export default function DashboardPage() {
   );
 
   return (
-    <main className="min-h-screen bg-[#141210] text-[#F0E6D3] pb-24">
-      <header className="flex items-center justify-between px-6 py-5 border-b border-[#2E2924] sticky top-0 bg-[#141210] z-10">
+    <main className="h-screen flex flex-col bg-[#141210] text-[#F0E6D3] pb-24 overflow-hidden">
+      <header className="flex-shrink-0 flex items-center justify-between px-6 py-5 border-b border-[#2E2924] bg-[#141210] z-10">
         <button onClick={() => router.push("/dashboard")} className="font-serif italic text-[#C8A96E] text-xl">circle</button>
         <button onClick={() => router.push("/profile")} className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#C8A96E] text-[#141210] text-sm font-bold">
           {userAvatarUrl ? (
@@ -137,7 +159,8 @@ export default function DashboardPage() {
         </button>
       </header>
 
-      <div className="max-w-lg mx-auto px-4 py-6 flex flex-col gap-8">
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="max-w-lg mx-auto px-4 py-6 flex flex-col gap-8">
 
         <div>
           <div className="text-[#7A7068] text-sm mb-1">{getGreeting()}, {userName}.</div>
@@ -152,6 +175,53 @@ export default function DashboardPage() {
           <div className="font-semibold text-base">Plan something</div>
           <div className="text-sm opacity-70 mt-0.5">Filter your people and build the perfect guest list.</div>
         </button>
+
+        {upcomingEvents.length > 0 && (
+          <div>
+            <div className="text-xs text-[#7A7068] uppercase tracking-widest font-semibold mb-3">Upcoming events</div>
+            <div className="flex flex-col gap-2">
+              {upcomingEvents.map(ev => {
+                const guestIds = ev.contact_ids || [];
+                const guests = guestIds.map(id => contacts.find(c => c.id === id)).filter(Boolean) as Contact[];
+                return (
+                  <button
+                    key={ev.id}
+                    type="button"
+                    onClick={() => router.push("/events")}
+                    className="w-full bg-[#1C1916] border border-[#2E2924] rounded-2xl p-4 text-left hover:border-[#C8A96E33] transition-all flex items-center justify-between gap-3"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-sm text-[#F0E6D3] truncate">{ev.name}</div>
+                      <div className="text-xs text-[#7A7068] mt-0.5">{formatEventDate(ev.event_date)}</div>
+                    </div>
+                    <div className="flex -space-x-2 flex-shrink-0">
+                      {guests.slice(0, 4).map(c => (
+                        <div
+                          key={c.id}
+                          className="w-8 h-8 rounded-full border-2 border-[#1C1916] overflow-hidden flex-shrink-0"
+                          style={{ background: getColor(c.full_name) }}
+                        >
+                          {c.photo_url ? (
+                            <img src={c.photo_url} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-xs font-bold text-white">
+                              {getInitials(c.full_name)}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {guestIds.length > 4 && (
+                        <div className="w-8 h-8 rounded-full border-2 border-[#1C1916] bg-[#2E2924] flex items-center justify-center text-xs text-[#7A7068]">
+                          +{guestIds.length - 4}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {allGroups.length > 0 && (
           <div>
@@ -273,6 +343,7 @@ export default function DashboardPage() {
             </button>
           </div>
         )}
+        </div>
       </div>
 
       <BottomNav />

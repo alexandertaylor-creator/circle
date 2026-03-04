@@ -70,7 +70,7 @@ function ContactsPageInner() {
       setLoading(false);
     };
     load();
-  }, [router]);
+  }, []);
 
   // Apply interest= and group= from URL once on load so the filter chips are pre-selected
   useEffect(() => {
@@ -167,8 +167,8 @@ function ContactsPageInner() {
   };
 
   return (
-    <main className="min-h-screen bg-[#141210] text-[#F0E6D3] pb-24">
-      <header className="flex items-center justify-between px-6 py-5 border-b border-[#2E2924] sticky top-0 bg-[#141210] z-10">
+    <main className="h-screen flex flex-col bg-[#141210] text-[#F0E6D3] pb-24 overflow-hidden">
+      <header className="flex-shrink-0 flex items-center justify-between px-6 py-5 border-b border-[#2E2924] bg-[#141210] z-10">
         <button onClick={() => router.push("/dashboard")} className="font-serif italic text-[#C8A96E] text-xl">circle</button>
         <span className="text-sm text-[#7A7068]">People</span>
         <button onClick={() => router.push("/profile")} className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-[#C8A96E] text-[#141210] text-sm font-bold">
@@ -179,7 +179,8 @@ function ContactsPageInner() {
           )}
         </button>
       </header>
-      <div className="max-w-lg mx-auto px-4 py-6">
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="max-w-lg mx-auto px-4 py-6">
         <button
           onClick={() => router.push("/contacts/new")}
           className="w-full mb-4 py-4 bg-[#C8A96E] text-[#141210] rounded-xl font-semibold text-sm hover:bg-[#D4B87E] transition-colors"
@@ -307,6 +308,7 @@ function ContactsPageInner() {
             </div>
           </>
         )}
+        </div>
       </div>
 
       <BottomNav />

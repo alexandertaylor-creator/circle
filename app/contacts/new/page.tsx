@@ -371,7 +371,13 @@ export default function NewContactPage() {
                   <button
                     key={tag}
                     type="button"
-                    onClick={() => { if (!selected) addInterest(tag); }}
+                    onClick={() => {
+                      if (selected) {
+                        setInterests(prev => prev.filter(i => i.toLowerCase() !== tag.toLowerCase()));
+                      } else {
+                        addInterest(tag);
+                      }
+                    }}
                     className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
                       selected
                         ? "border-[#C8A96E] text-[#C8A96E] bg-[#28211A]"
@@ -406,7 +412,13 @@ export default function NewContactPage() {
                   <button
                     key={tag}
                     type="button"
-                    onClick={() => { if (!selected) addGroup(tag); }}
+                    onClick={() => {
+                      if (selected) {
+                        setGroups(prev => prev.filter(g => g.toLowerCase() !== tag.toLowerCase()));
+                      } else {
+                        addGroup(tag);
+                      }
+                    }}
                     className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
                       selected
                         ? "border-[#C8A96E] text-[#C8A96E] bg-[#28211A]"

@@ -689,9 +689,11 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
                         key={g}
                         type="button"
                         onClick={() => {
-                          const inList = editGroups.find(eg => eg.toLowerCase() === g.toLowerCase());
-                          if (inList) removeEditGroup(inList);
-                          else addEditGroup(g);
+                          if (selected) {
+                            setEditGroups(prev => prev.filter(eg => eg.toLowerCase() !== g.toLowerCase()));
+                          } else {
+                            addEditGroup(g);
+                          }
                         }}
                         className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all capitalize ${
                           selected
@@ -780,9 +782,11 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
                         key={i}
                         type="button"
                         onClick={() => {
-                          const inList = editInterests.find(ei => ei.toLowerCase() === i.toLowerCase());
-                          if (inList) removeEditInterest(inList);
-                          else addEditInterest(i);
+                          if (selected) {
+                            setEditInterests(prev => prev.filter(ei => ei.toLowerCase() !== i.toLowerCase()));
+                          } else {
+                            addEditInterest(i);
+                          }
                         }}
                         className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all capitalize ${
                           selected

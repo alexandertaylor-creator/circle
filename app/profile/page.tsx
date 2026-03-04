@@ -61,7 +61,7 @@ export default function ProfilePage() {
       setLoading(false);
     };
     init();
-  }, [router]);
+  }, []);
 
   const saveInterestsToServer = async (updatedInterests: string[]) => {
     if (!userId) return;
@@ -173,8 +173,8 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#141210] text-[#F0E6D3] pb-24">
-      <header className="flex items-center justify-between px-6 py-5 border-b border-[#2E2924] sticky top-0 bg-[#141210] z-10">
+    <main className="h-screen flex flex-col bg-[#141210] text-[#F0E6D3] pb-24 overflow-hidden">
+      <header className="flex-shrink-0 flex items-center justify-between px-6 py-5 border-b border-[#2E2924] bg-[#141210] z-10">
         <button
           onClick={() => router.push("/dashboard")}
           className="text-sm text-[#7A7068] hover:text-[#F0E6D3] transition-colors"
@@ -189,7 +189,8 @@ export default function ProfilePage() {
         )}
       </header>
 
-      <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-6">
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-6">
         {/* Avatar */}
         <div className="flex flex-col items-center gap-4">
           <input
@@ -343,6 +344,7 @@ export default function ProfilePage() {
         >
           Sign out
         </button>
+        </div>
       </div>
 
       <BottomNav />

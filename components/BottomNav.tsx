@@ -10,6 +10,7 @@ type NavContact = {
   full_name: string;
   photo_url: string | null;
   groups: string[] | null;
+  interests: string[] | null;
 };
 
 const LOG_INTERACTION_TYPES = [
@@ -33,6 +34,9 @@ export function BottomNav() {
   const [logContacts, setLogContacts] = useState<NavContact[]>([]);
   const [logSearch, setLogSearch] = useState("");
   const [logSelectedIds, setLogSelectedIds] = useState<string[]>([]);
+  const [logSelectedGroups, setLogSelectedGroups] = useState<string[]>([]);
+  const [logSelectedInterests, setLogSelectedInterests] = useState<string[]>([]);
+  const [logProfileInterests, setLogProfileInterests] = useState<string[]>([]);
   const [logSaving, setLogSaving] = useState(false);
   const [logShowSuccess, setLogShowSuccess] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -50,17 +54,24 @@ export function BottomNav() {
     load();
   }, []);
 
-  // Lazily load contacts for the Log interaction modal when it opens
+  // Lazily load contacts + profile interests for the Log interaction modal when it opens
   useEffect(() => {
     if (!showLogInteractionModal) return;
     if (logContacts.length > 0) return;
     const loadContacts = async () => {
-      const { data } = await supabase
+      const { data: { session } } = await supabase.auth.getSession();
+      const contactsPromise = supabase
         .from("contacts")
-        .select("id, full_name, groups, photo_url")
+        .select("id, full_name, groups, photo_url, interests")
         .order("full_name")
         .limit(1000);
+      const profilePromise = session
+        ? supabase.from("profiles").select("interests").eq("id", session.user.id).single()
+        : Promise.resolve({ data: null });
+      const [{ data }, { data: profile }] = await Promise.all([contactsPromise, profilePromise]);
       setLogContacts((data || []) as NavContact[]);
+      const profileInterests = Array.isArray(profile?.interests) ? profile.interests : [];
+      setLogProfileInterests(profileInterests);
     };
     loadContacts();
   }, [showLogInteractionModal, logContacts.length]);
@@ -86,10 +97,31 @@ export function BottomNav() {
   );
   const isDuplicate = newGroupName.trim() && existingGroupNames.some(g => g.toLowerCase() === newGroupName.trim().toLowerCase());
 
+  const logAllGroups = [...new Set(logContacts.flatMap(c => c.groups || []))].sort();
+  const logAllInterests = [...new Set([
+    ...logContacts.flatMap(c => c.interests || []),
+    ...logProfileInterests,
+  ])].sort();
+
   const filteredLogContacts = logContacts.filter(c => {
-    if (!logSearch.trim()) return true;
-    return c.full_name.toLowerCase().includes(logSearch.toLowerCase());
+    if (logSearch.trim() && !c.full_name.toLowerCase().includes(logSearch.toLowerCase())) return false;
+    if (logSelectedGroups.length > 0) {
+      const contactGroups = c.groups || [];
+      if (!logSelectedGroups.some(g => contactGroups.includes(g))) return false;
+    }
+    if (logSelectedInterests.length > 0) {
+      const contactInterests = c.interests || [];
+      if (!logSelectedInterests.some(i => contactInterests.includes(i))) return false;
+    }
+    return true;
   });
+
+  const toggleLogGroup = (group: string) => {
+    setLogSelectedGroups(prev => prev.includes(group) ? prev.filter(g => g !== group) : [...prev, group]);
+  };
+  const toggleLogInterest = (interest: string) => {
+    setLogSelectedInterests(prev => prev.includes(interest) ? prev.filter(i => i !== interest) : [...prev, interest]);
+  };
 
   const toggleLogContact = (id: string) => {
     setLogSelectedIds(prev =>
@@ -105,6 +137,8 @@ export function BottomNav() {
     setLogNote("");
     setLogSearch("");
     setLogSelectedIds([]);
+    setLogSelectedGroups([]);
+    setLogSelectedInterests([]);
     setLogShowSuccess(false);
   };
 
@@ -139,6 +173,8 @@ export function BottomNav() {
     setLogShowSuccess(true);
     setTimeout(() => {
       setShowLogInteractionModal(false);
+      setLogContacts([]);
+      setLogProfileInterests([]);
       setLogShowSuccess(false);
       setLogSelectedIds([]);
       setLogNote("");
@@ -219,6 +255,8 @@ export function BottomNav() {
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowLogInteractionModal(false);
+              setLogContacts([]);
+              setLogProfileInterests([]);
             }
           }}
         >
@@ -283,6 +321,56 @@ export function BottomNav() {
                 onChange={e => setLogSearch(e.target.value)}
                 className="w-full bg-[#231F1B] border border-[#2E2924] rounded-lg px-3 py-2 text-sm text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors mb-2"
               />
+              {logAllGroups.length > 0 && (
+                <div className="mb-2">
+                  <div className="text-[10px] text-[#7A7068] uppercase tracking-widest font-semibold mb-1.5">Groups</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {logAllGroups.map(group => {
+                      const active = logSelectedGroups.includes(group);
+                      return (
+                        <button
+                          key={group}
+                          type="button"
+                          onClick={() => toggleLogGroup(group)}
+                          className={
+                            "px-2.5 py-1 rounded-full text-xs font-medium border transition-all capitalize " +
+                            (active
+                              ? "border-[#C8A96E] text-[#C8A96E] bg-[#28211A]"
+                              : "border-[#2E2924] text-[#7A7068] hover:border-[#C8A96E44] hover:text-[#C8A96E]")
+                          }
+                        >
+                          {group}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {logAllInterests.length > 0 && (
+                <div className="mb-2">
+                  <div className="text-[10px] text-[#7A7068] uppercase tracking-widest font-semibold mb-1.5">Interests</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {logAllInterests.map(interest => {
+                      const active = logSelectedInterests.includes(interest);
+                      return (
+                        <button
+                          key={interest}
+                          type="button"
+                          onClick={() => toggleLogInterest(interest)}
+                          className={
+                            "px-2.5 py-1 rounded-full text-xs font-medium border transition-all capitalize " +
+                            (active
+                              ? "border-[#C8A96E] text-[#C8A96E] bg-[#28211A]"
+                              : "border-[#2E2924] text-[#7A7068] hover:border-[#C8A96E44] hover:text-[#C8A96E]")
+                          }
+                        >
+                          {interest}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <div className="max-h-48 overflow-y-auto -mx-1 pr-1 space-y-1">
                 {logContacts.length === 0 ? (
                   <div className="text-xs text-[#7A7068] px-1 py-2">

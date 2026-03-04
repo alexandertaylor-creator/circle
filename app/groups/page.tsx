@@ -55,7 +55,7 @@ export default function GroupsPage() {
       setLoading(false);
     };
     load();
-  }, [router]);
+  }, []);
 
   const sorted = sortBySize
     ? [...groups].sort((a, b) => b.count - a.count)
@@ -85,8 +85,8 @@ export default function GroupsPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#141210] text-[#F0E6D3] pb-24">
-      <header className="flex items-center justify-between px-6 py-5 border-b border-[#2E2924] sticky top-0 bg-[#141210] z-10">
+    <main className="h-screen flex flex-col bg-[#141210] text-[#F0E6D3] pb-24 overflow-hidden">
+      <header className="flex-shrink-0 flex items-center justify-between px-6 py-5 border-b border-[#2E2924] bg-[#141210] z-10">
         <button onClick={() => router.push("/dashboard")} className="font-serif italic text-[#C8A96E] text-xl">circle</button>
         <span className="text-sm text-[#7A7068]">Groups</span>
         <button onClick={() => router.push("/profile")} className="w-8 h-8 rounded-full overflow-hidden bg-[#C8A96E] flex items-center justify-center">
@@ -97,7 +97,8 @@ export default function GroupsPage() {
         </button>
       </header>
 
-      <div className="max-w-lg mx-auto px-4 py-6 flex flex-col gap-3">
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="max-w-lg mx-auto px-4 py-6 flex flex-col gap-3">
         <div className="flex justify-end mb-1">
           <button onClick={() => setSortBySize(prev => !prev)} className="text-xs text-[#7A7068] hover:text-[#F0E6D3] transition-colors">
             {sortBySize ? "Sort A-Z" : "Sort by size"}
@@ -173,6 +174,7 @@ export default function GroupsPage() {
             </div>
           ))
         )}
+        </div>
       </div>
 
       {showCreateGroupModal && (
