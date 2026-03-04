@@ -2,7 +2,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { supplementInterests, supplementGroups } from "@/lib/suggestions";
 
 const SUGGESTION_CHIPS = ["Work", "Family", "Best Friends", "Workout Buddies", "College Friends", "Neighbors"];
 
@@ -45,9 +44,13 @@ export function BottomNav() {
   // Load group names (for create-group suggestions) once on mount
   useEffect(() => {
     const load = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const userId = session.user.id;
       const { data: contacts } = await supabase
         .from("contacts")
         .select("groups")
+        .eq("user_id", userId)
         .limit(1000);
       const names = [...new Set((contacts || []).flatMap((c: { groups?: string[] | null }) => c.groups || []))];
       setExistingGroupNames(names);
@@ -61,14 +64,15 @@ export function BottomNav() {
     if (logContacts.length > 0) return;
     const loadContacts = async () => {
       const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const userId = session.user.id;
       const contactsPromise = supabase
         .from("contacts")
         .select("id, full_name, groups, photo_url, interests")
+        .eq("user_id", userId)
         .order("full_name")
         .limit(1000);
-      const profilePromise = session
-        ? supabase.from("profiles").select("interests").eq("id", session.user.id).single()
-        : Promise.resolve({ data: null });
+      const profilePromise = supabase.from("profiles").select("interests").eq("id", userId).single();
       const [{ data }, { data: profile }] = await Promise.all([contactsPromise, profilePromise]);
       setLogContacts((data || []) as NavContact[]);
       const profileInterests = Array.isArray(profile?.interests) ? profile.interests : [];
@@ -98,11 +102,11 @@ export function BottomNav() {
   );
   const isDuplicate = newGroupName.trim() && existingGroupNames.some(g => g.toLowerCase() === newGroupName.trim().toLowerCase());
 
-  const logAllGroups = supplementGroups([...new Set(logContacts.flatMap(c => c.groups || []))].sort());
-  const logAllInterests = supplementInterests([...new Set([
+  const logAllGroups = [...new Set(logContacts.flatMap(c => c.groups || []))].sort();
+  const logAllInterests = [...new Set([
     ...logContacts.flatMap(c => c.interests || []),
     ...logProfileInterests,
-  ])].sort());
+  ])].sort();
 
   const filteredLogContacts = logContacts.filter(c => {
     if (logSearch.trim() && !c.full_name.toLowerCase().includes(logSearch.toLowerCase())) return false;

@@ -32,12 +32,13 @@ export default function ProfilePage() {
         router.push("/auth");
         return;
       }
-      setUserId(session.user.id);
+      const userId = session.user.id;
+      setUserId(userId);
       setEmail(session.user.email ?? "");
 
       const [{ data: profile }, { data: contactsData }] = await Promise.all([
-        supabase.from("profiles").select("display_name, avatar_url, interests").eq("id", session.user.id).single(),
-        supabase.from("contacts").select("interests").limit(1000),
+        supabase.from("profiles").select("display_name, avatar_url, interests").eq("id", userId).single(),
+        supabase.from("contacts").select("interests").eq("user_id", userId).limit(1000),
       ]);
       if (profile) {
         setDisplayName(profile.display_name ?? "");

@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { supplementInterests, supplementGroups } from "@/lib/suggestions";
 import { BottomNav } from "@/components/BottomNav";
 
 type Contact = {
@@ -39,13 +38,15 @@ export default function DashboardPage() {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/auth"); return; }
+      const userId = session.user.id;
       const today = new Date();
       const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-      const [{ data: profile }, { data }, { data: groupsRows }, { data: eventsData }] = await Promise.all([
-        supabase.from("profiles").select("display_name, avatar_url, interests").eq("id", session.user.id).single(),
-        supabase.from("contacts").select("id, full_name, last_contacted, interests, groups, photo_url").order("full_name").limit(1000),
-        supabase.from("groups").select("name, photo_url").eq("user_id", session.user.id),
-        supabase.from("events").select("id, name, event_date, event_time, contact_ids").eq("user_id", session.user.id).gte("event_date", todayStr).order("event_date", { ascending: true }).limit(3),
+      // All data scoped to current user: contacts for groups/interests, profile, groups, events
+      const [{ data: profile }, { data: contactsData }, { data: groupsRows }, { data: eventsData }] = await Promise.all([
+        supabase.from("profiles").select("display_name, avatar_url, interests").eq("id", userId).single(),
+        supabase.from("contacts").select("id, full_name, last_contacted, interests, groups, photo_url").eq("user_id", userId).order("full_name").limit(1000),
+        supabase.from("groups").select("name, photo_url").eq("user_id", userId),
+        supabase.from("events").select("id, name, event_date, event_time, contact_ids").eq("user_id", userId).gte("event_date", todayStr).order("event_date", { ascending: true }).limit(3),
       ]);
       setUserName(profile?.display_name ?? session.user.email?.split("@")[0] ?? "friend");
       if (profile?.avatar_url) setUserAvatarUrl(profile.avatar_url);
@@ -60,14 +61,16 @@ export default function DashboardPage() {
       const { data: interactions } = await supabase
         .from("interactions")
         .select("contact_id")
-        .eq("user_id", session.user.id)
+        .eq("user_id", userId)
         .limit(10000);
-      if (data) {
-        setContacts(data);
-        const fromContacts = data.flatMap(c => c.interests || []);
+      // Groups and interests only from current user's contacts (contactsData) and profile
+      if (contactsData) {
+        setContacts(contactsData);
+        const fromContacts = contactsData.flatMap(c => c.interests || []);
         const fromProfile = Array.isArray(profile?.interests) ? profile.interests : [];
-        setAllInterests(supplementInterests(Array.from(new Set([...fromContacts, ...fromProfile])).sort()));
-        setAllGroups(supplementGroups(Array.from(new Set(data.flatMap(c => c.groups || []))).sort()));
+        setAllInterests(Array.from(new Set([...fromContacts, ...fromProfile])).sort());
+        // Only groups that appear on at least one contact (no defaults/placeholders)
+        setAllGroups(Array.from(new Set(contactsData.flatMap(c => c.groups || []))).sort());
         const countByContact = (interactions || []).reduce((acc, r) => {
           acc[r.contact_id] = (acc[r.contact_id] || 0) + 1;
           return acc;
@@ -77,9 +80,9 @@ export default function DashboardPage() {
           .sort((a, b) => b[1] - a[1])
           .slice(0, 3)
           .map(([id]) => id);
-        setTopFriends(topIds.map(id => data.find(c => c.id === id)).filter(Boolean) as Contact[]);
+        setTopFriends(topIds.map(id => contactsData.find(c => c.id === id)).filter(Boolean) as Contact[]);
       } else if (Array.isArray(profile?.interests) && profile.interests.length > 0) {
-        setAllInterests(supplementInterests(Array.from(new Set(profile.interests)).sort()));
+        setAllInterests(Array.from(new Set(profile.interests)).sort());
       }
       setLoading(false);
     };

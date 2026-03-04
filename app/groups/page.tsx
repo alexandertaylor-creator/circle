@@ -28,10 +28,11 @@ export default function GroupsPage() {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/auth"); return; }
+      const userId = session.user.id;
       const [{ data: contacts }, { data: profile }, { data: groupsRows }] = await Promise.all([
-        supabase.from("contacts").select("id, full_name, groups").limit(1000),
-        supabase.from("profiles").select("avatar_url").eq("id", session.user.id).single(),
-        supabase.from("groups").select("name, photo_url").eq("user_id", session.user.id),
+        supabase.from("contacts").select("id, full_name, groups").eq("user_id", userId).limit(1000),
+        supabase.from("profiles").select("avatar_url").eq("id", userId).single(),
+        supabase.from("groups").select("name, photo_url").eq("user_id", userId),
       ]);
       if (profile) setUserAvatar(profile.avatar_url);
       if (groupsRows) {

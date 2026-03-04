@@ -43,10 +43,11 @@ export default function GroupDetailPage({ params }: { params: Promise<{ name: st
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/auth"); return; }
+      const userId = session.user.id;
       const [{ data: profile }, { data: groupRow }, { data: contactsData }] = await Promise.all([
-        supabase.from("profiles").select("avatar_url, display_name").eq("id", session.user.id).single(),
-        supabase.from("groups").select("photo_url").eq("user_id", session.user.id).eq("name", groupName).maybeSingle(),
-        supabase.from("contacts").select("id, full_name, last_contacted, groups, interests").order("full_name").limit(1000),
+        supabase.from("profiles").select("avatar_url, display_name").eq("id", userId).single(),
+        supabase.from("groups").select("photo_url").eq("user_id", userId).eq("name", groupName).maybeSingle(),
+        supabase.from("contacts").select("id, full_name, last_contacted, groups, interests").eq("user_id", userId).order("full_name").limit(1000),
       ]);
       if (profile?.avatar_url) setUserAvatarUrl(profile.avatar_url);
       if (profile?.display_name) setUserDisplayName(profile.display_name);

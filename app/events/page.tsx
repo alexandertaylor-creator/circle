@@ -295,10 +295,11 @@ export default function EventsPage() {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/auth"); return; }
+      const userId = session.user.id;
       const { data: profile } = await supabase
         .from("profiles")
         .select("avatar_url, display_name")
-        .eq("id", session.user.id)
+        .eq("id", userId)
         .single();
       if (profile?.avatar_url) setUserAvatarUrl(profile.avatar_url);
       if (profile?.display_name) setUserDisplayName(profile.display_name);
@@ -307,11 +308,11 @@ export default function EventsPage() {
           .from("events")
           .select("id, name, event_date, event_time, contact_ids, message_draft, created_at, photo_url")
           .order("created_at", { ascending: false }),
-        supabase.from("contacts").select("id, full_name, photo_url").order("full_name").limit(1000),
+        supabase.from("contacts").select("id, full_name, photo_url").eq("user_id", userId).order("full_name").limit(1000),
         supabase
           .from("interactions")
           .select("id, contact_id, type, occurred_on, note")
-          .eq("user_id", session.user.id)
+          .eq("user_id", userId)
           .order("occurred_on", { ascending: false }),
       ]);
       if (events) setEvents(events);

@@ -2,7 +2,6 @@
 import { useState, useEffect, useRef, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { supplementInterests, supplementGroups } from "@/lib/suggestions";
 
 type Contact = {
   id: string;
@@ -45,22 +44,24 @@ function PlanPageInner() {
         router.push("/auth");
         return;
       }
-      setUserId(session.user.id);
+      const userId = session.user.id;
+      setUserId(userId);
       const [{ data: contactsData }, { data: profileData }] = await Promise.all([
         supabase
           .from("contacts")
           .select("id, full_name, last_contacted, interests, groups, photo_url")
+          .eq("user_id", userId)
           .order("full_name")
           .limit(1000),
-        supabase.from("profiles").select("interests").eq("id", session.user.id).maybeSingle(),
+        supabase.from("profiles").select("interests").eq("id", userId).maybeSingle(),
       ]);
       if (contactsData) {
         setContacts(contactsData);
-        setAllGroups(supplementGroups(Array.from(new Set(contactsData.flatMap(c => c.groups || []))).sort()));
+        setAllGroups(Array.from(new Set(contactsData.flatMap(c => c.groups || []))).sort());
       }
       const fromContacts = contactsData ? contactsData.flatMap(c => c.interests || []) : [];
       const fromProfiles = Array.isArray(profileData?.interests) ? profileData.interests : [];
-      setAllInterests(supplementInterests(Array.from(new Set([...fromContacts, ...fromProfiles])).sort()));
+      setAllInterests(Array.from(new Set([...fromContacts, ...fromProfiles])).sort());
       setLoading(false);
     };
     load();

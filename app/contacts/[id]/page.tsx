@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { supplementInterests, supplementGroups } from "@/lib/suggestions";
 import { BottomNav } from "@/components/BottomNav";
 
 type Contact = {
@@ -88,11 +87,12 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/auth"); return; }
+      const userId = session.user.id;
       const [{ data }, { data: interactionsData }, { data: allData }, { data: profileData }] = await Promise.all([
-        supabase.from("contacts").select("id, full_name, last_contacted, notes, interests, groups, created_at, photo_url, dob, phone").eq("id", id).single(),
+        supabase.from("contacts").select("id, full_name, last_contacted, notes, interests, groups, created_at, photo_url, dob, phone").eq("id", id).eq("user_id", userId).single(),
         supabase.from("interactions").select("id, type, occurred_on, note").eq("contact_id", id).order("occurred_on", { ascending: false }),
-        supabase.from("contacts").select("interests, groups").limit(1000),
-        supabase.from("profiles").select("interests, avatar_url, display_name").eq("id", session.user.id).maybeSingle(),
+        supabase.from("contacts").select("interests, groups").eq("user_id", userId).limit(1000),
+        supabase.from("profiles").select("interests, avatar_url, display_name").eq("id", userId).maybeSingle(),
       ]);
       if (data) {
         setContact(data);
@@ -105,13 +105,13 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
         setInteractionsShown(INTERACTIONS_PAGE_SIZE);
       }
       if (allData) {
-        setAllGroups(supplementGroups(Array.from(new Set(allData.flatMap((c: { groups?: string[] | null }) => c.groups || []))).sort()));
+        setAllGroups(Array.from(new Set(allData.flatMap((c: { groups?: string[] | null }) => c.groups || []))).sort());
         const fromContacts = allData.flatMap((c: { interests?: string[] | null }) => c.interests || []);
         const fromProfiles = Array.isArray(profileData?.interests) ? profileData.interests : [];
-        setAllInterests(supplementInterests(Array.from(new Set([...fromContacts, ...fromProfiles])).sort()));
+        setAllInterests(Array.from(new Set([...fromContacts, ...fromProfiles])).sort());
       } else {
         const fromProfiles = Array.isArray(profileData?.interests) ? profileData.interests : [];
-        if (fromProfiles.length > 0) setAllInterests(supplementInterests(Array.from(new Set(fromProfiles)).sort()));
+        if (fromProfiles.length > 0) setAllInterests(Array.from(new Set(fromProfiles)).sort());
       }
       const profile = profileData as { avatar_url?: string; display_name?: string } | null;
       if (profile?.avatar_url) setUserAvatarUrl(profile.avatar_url);

@@ -2,7 +2,6 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { supplementInterests, supplementGroups } from "@/lib/suggestions";
 import { BottomNav } from "@/components/BottomNav";
 
 const PAGE_SIZE = 50;
@@ -42,21 +41,23 @@ function ContactsPageInner() {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/auth"); return; }
+      const userId = session.user.id;
       const { data: profile } = await supabase
         .from("profiles")
         .select("avatar_url, display_name")
-        .eq("id", session.user.id)
+        .eq("id", userId)
         .single();
       if (profile?.avatar_url) setUserAvatarUrl(profile.avatar_url);
       if (profile?.display_name) setUserDisplayName(profile.display_name);
       const { data } = await supabase
         .from("contacts")
         .select("id, full_name, last_contacted, interests, groups, photo_url")
+        .eq("user_id", userId)
         .limit(1000);
       const { data: interactions } = await supabase
         .from("interactions")
         .select("contact_id")
-        .eq("user_id", session.user.id)
+        .eq("user_id", userId)
         .limit(10000);
       if (data) {
         const countByContact = (interactions || []).reduce((acc, r) => {
@@ -65,8 +66,8 @@ function ContactsPageInner() {
         }, {} as Record<string, number>);
         const sorted = [...data].sort((a, b) => (countByContact[b.id] || 0) - (countByContact[a.id] || 0));
         setContacts(sorted);
-        setAllInterests(supplementInterests(Array.from(new Set(data.flatMap(c => c.interests || []))).sort()));
-        setAllGroups(supplementGroups(Array.from(new Set(data.flatMap(c => c.groups || []))).sort()));
+        setAllInterests(Array.from(new Set(data.flatMap(c => c.interests || []))).sort());
+        setAllGroups(Array.from(new Set(data.flatMap(c => c.groups || []))).sort());
       }
       setLoading(false);
     };

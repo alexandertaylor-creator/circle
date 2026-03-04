@@ -2,7 +2,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { supplementInterests, supplementGroups } from "@/lib/suggestions";
 
 function TagInput({
   label,
@@ -117,18 +116,19 @@ export default function NewContactPage() {
 
   const loadExisting = async () => {
     const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
     const [{ data: contactsData }, { data: profileData }] = await Promise.all([
-      supabase.from("contacts").select("id, full_name, interests, groups").limit(1000),
-      session ? supabase.from("profiles").select("interests").eq("id", session.user.id).maybeSingle() : Promise.resolve({ data: null }),
+      userId ? supabase.from("contacts").select("id, full_name, interests, groups").eq("user_id", userId).limit(1000) : Promise.resolve({ data: null }),
+      userId ? supabase.from("profiles").select("interests").eq("id", userId).maybeSingle() : Promise.resolve({ data: null }),
     ]);
     if (contactsData) {
       setExistingContacts(contactsData.map(c => ({ id: c.id, full_name: c.full_name || "" })));
       const fromContacts = contactsData.flatMap(c => c.interests || []);
       const fromProfiles = (Array.isArray(profileData?.interests) ? profileData.interests : []) as string[];
-      setAllInterests(supplementInterests(Array.from(new Set([...fromContacts, ...fromProfiles])).sort()));
-      setAllGroups(supplementGroups(Array.from(new Set(contactsData.flatMap(c => c.groups || []))).sort()));
+      setAllInterests(Array.from(new Set([...fromContacts, ...fromProfiles])).sort());
+      setAllGroups(Array.from(new Set(contactsData.flatMap(c => c.groups || []))).sort());
     } else if (Array.isArray(profileData?.interests) && profileData.interests.length > 0) {
-      setAllInterests(supplementInterests(Array.from(new Set(profileData.interests as string[])).sort()));
+      setAllInterests(Array.from(new Set(profileData.interests as string[])).sort());
     }
   };
 
@@ -353,7 +353,7 @@ export default function NewContactPage() {
         )}
         <TagInput
           label="Interests"
-          placeholder='e.g. padel, rockets, golf...'
+          placeholder="e.g. Coffee, Fitness, Travel, Music..."
           value={interestInput}
           setValue={setInterestInput}
           tags={interests}
@@ -394,7 +394,7 @@ export default function NewContactPage() {
         )}
         <TagInput
           label="Groups"
-          placeholder='e.g. the boys, work friends, college crew...'
+          placeholder="e.g. Work, Family, College Friends..."
           value={groupInput}
           setValue={setGroupInput}
           tags={groups}
