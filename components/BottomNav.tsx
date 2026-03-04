@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { supplementInterests, supplementGroups } from "@/lib/suggestions";
 
 const SUGGESTION_CHIPS = ["Work", "Family", "Best Friends", "Workout Buddies", "College Friends", "Neighbors"];
 
@@ -97,11 +98,11 @@ export function BottomNav() {
   );
   const isDuplicate = newGroupName.trim() && existingGroupNames.some(g => g.toLowerCase() === newGroupName.trim().toLowerCase());
 
-  const logAllGroups = [...new Set(logContacts.flatMap(c => c.groups || []))].sort();
-  const logAllInterests = [...new Set([
+  const logAllGroups = supplementGroups([...new Set(logContacts.flatMap(c => c.groups || []))].sort());
+  const logAllInterests = supplementInterests([...new Set([
     ...logContacts.flatMap(c => c.interests || []),
     ...logProfileInterests,
-  ])].sort();
+  ])].sort());
 
   const filteredLogContacts = logContacts.filter(c => {
     if (logSearch.trim() && !c.full_name.toLowerCase().includes(logSearch.toLowerCase())) return false;

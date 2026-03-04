@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { supplementInterests, supplementGroups } from "@/lib/suggestions";
 
 type Contact = {
   id: string;
@@ -55,11 +56,11 @@ function PlanPageInner() {
       ]);
       if (contactsData) {
         setContacts(contactsData);
-        setAllGroups(Array.from(new Set(contactsData.flatMap(c => c.groups || []))).sort());
+        setAllGroups(supplementGroups(Array.from(new Set(contactsData.flatMap(c => c.groups || []))).sort()));
       }
       const fromContacts = contactsData ? contactsData.flatMap(c => c.interests || []) : [];
       const fromProfiles = Array.isArray(profileData?.interests) ? profileData.interests : [];
-      setAllInterests(Array.from(new Set([...fromContacts, ...fromProfiles])).sort());
+      setAllInterests(supplementInterests(Array.from(new Set([...fromContacts, ...fromProfiles])).sort()));
       setLoading(false);
     };
     load();

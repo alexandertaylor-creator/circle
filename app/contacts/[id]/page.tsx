@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { supplementInterests, supplementGroups } from "@/lib/suggestions";
 import { BottomNav } from "@/components/BottomNav";
 
 type Contact = {
@@ -104,13 +105,13 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
         setInteractionsShown(INTERACTIONS_PAGE_SIZE);
       }
       if (allData) {
-        setAllGroups(Array.from(new Set(allData.flatMap((c: { groups?: string[] | null }) => c.groups || []))).sort());
+        setAllGroups(supplementGroups(Array.from(new Set(allData.flatMap((c: { groups?: string[] | null }) => c.groups || []))).sort()));
         const fromContacts = allData.flatMap((c: { interests?: string[] | null }) => c.interests || []);
         const fromProfiles = Array.isArray(profileData?.interests) ? profileData.interests : [];
-        setAllInterests(Array.from(new Set([...fromContacts, ...fromProfiles])).sort());
+        setAllInterests(supplementInterests(Array.from(new Set([...fromContacts, ...fromProfiles])).sort()));
       } else {
         const fromProfiles = Array.isArray(profileData?.interests) ? profileData.interests : [];
-        if (fromProfiles.length > 0) setAllInterests(Array.from(new Set(fromProfiles)).sort());
+        if (fromProfiles.length > 0) setAllInterests(supplementInterests(Array.from(new Set(fromProfiles)).sort()));
       }
       const profile = profileData as { avatar_url?: string; display_name?: string } | null;
       if (profile?.avatar_url) setUserAvatarUrl(profile.avatar_url);

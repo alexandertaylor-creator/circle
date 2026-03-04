@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { supplementInterests, supplementGroups } from "@/lib/suggestions";
 
 function TagInput({
   label,
@@ -124,10 +125,10 @@ export default function NewContactPage() {
       setExistingContacts(contactsData.map(c => ({ id: c.id, full_name: c.full_name || "" })));
       const fromContacts = contactsData.flatMap(c => c.interests || []);
       const fromProfiles = (Array.isArray(profileData?.interests) ? profileData.interests : []) as string[];
-      setAllInterests(Array.from(new Set([...fromContacts, ...fromProfiles])).sort());
-      setAllGroups(Array.from(new Set(contactsData.flatMap(c => c.groups || []))).sort());
+      setAllInterests(supplementInterests(Array.from(new Set([...fromContacts, ...fromProfiles])).sort()));
+      setAllGroups(supplementGroups(Array.from(new Set(contactsData.flatMap(c => c.groups || []))).sort()));
     } else if (Array.isArray(profileData?.interests) && profileData.interests.length > 0) {
-      setAllInterests(Array.from(new Set(profileData.interests as string[])).sort());
+      setAllInterests(supplementInterests(Array.from(new Set(profileData.interests as string[])).sort()));
     }
   };
 

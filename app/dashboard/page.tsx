@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { supplementInterests, supplementGroups } from "@/lib/suggestions";
 import { BottomNav } from "@/components/BottomNav";
 
 type Contact = {
@@ -65,8 +66,8 @@ export default function DashboardPage() {
         setContacts(data);
         const fromContacts = data.flatMap(c => c.interests || []);
         const fromProfile = Array.isArray(profile?.interests) ? profile.interests : [];
-        setAllInterests(Array.from(new Set([...fromContacts, ...fromProfile])).sort());
-        setAllGroups(Array.from(new Set(data.flatMap(c => c.groups || []))).sort());
+        setAllInterests(supplementInterests(Array.from(new Set([...fromContacts, ...fromProfile])).sort()));
+        setAllGroups(supplementGroups(Array.from(new Set(data.flatMap(c => c.groups || []))).sort()));
         const countByContact = (interactions || []).reduce((acc, r) => {
           acc[r.contact_id] = (acc[r.contact_id] || 0) + 1;
           return acc;
@@ -78,7 +79,7 @@ export default function DashboardPage() {
           .map(([id]) => id);
         setTopFriends(topIds.map(id => data.find(c => c.id === id)).filter(Boolean) as Contact[]);
       } else if (Array.isArray(profile?.interests) && profile.interests.length > 0) {
-        setAllInterests(Array.from(new Set(profile.interests)).sort());
+        setAllInterests(supplementInterests(Array.from(new Set(profile.interests)).sort()));
       }
       setLoading(false);
     };

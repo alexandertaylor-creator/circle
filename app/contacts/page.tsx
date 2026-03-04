@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { supplementInterests, supplementGroups } from "@/lib/suggestions";
 import { BottomNav } from "@/components/BottomNav";
 
 const PAGE_SIZE = 50;
@@ -64,8 +65,8 @@ function ContactsPageInner() {
         }, {} as Record<string, number>);
         const sorted = [...data].sort((a, b) => (countByContact[b.id] || 0) - (countByContact[a.id] || 0));
         setContacts(sorted);
-        setAllInterests(Array.from(new Set(data.flatMap(c => c.interests || []))).sort());
-        setAllGroups(Array.from(new Set(data.flatMap(c => c.groups || []))).sort());
+        setAllInterests(supplementInterests(Array.from(new Set(data.flatMap(c => c.interests || []))).sort()));
+        setAllGroups(supplementGroups(Array.from(new Set(data.flatMap(c => c.groups || []))).sort()));
       }
       setLoading(false);
     };
