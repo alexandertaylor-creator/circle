@@ -15,15 +15,36 @@ export default function AuthPage() {
     if (!email.trim() || !password.trim()) return;
     setLoading(true);
     setError("");
-    const { error } = mode === "signup"
-      ? await supabase.auth.signUp({ email, password })
-      : await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setError(error.message);
-    } else {
-      router.push("/dashboard");
+    try {
+      const authResult =
+        mode === "signup"
+          ? await supabase.auth.signUp({ email, password })
+          : await supabase.auth.signInWithPassword({ email, password });
+
+      if (authResult.error) {
+        setError(authResult.error.message);
+        return;
+      }
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user.id;
+
+      if (!userId) {
+        router.push("/dashboard");
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("onboarded")
+        .eq("id", userId)
+        .maybeSingle();
+
+      const onboarded = profile?.onboarded === true;
+      router.push(onboarded ? "/dashboard" : "/onboarding");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

@@ -44,7 +44,12 @@ export default function DashboardPage() {
       // All data scoped to current user: contacts for groups/interests, profile, groups, events
       const [{ data: profile }, { data: contactsData }, { data: groupsRows }, { data: eventsData }] = await Promise.all([
         supabase.from("profiles").select("display_name, avatar_url, interests").eq("id", userId).single(),
-        supabase.from("contacts").select("id, full_name, last_contacted, interests, groups, photo_url").eq("user_id", userId).order("full_name").limit(1000),
+        supabase
+          .from("contacts")
+          .select("id, full_name, last_contacted, interests, groups, photo_url")
+          .eq("user_id", userId)
+          .order("full_name")
+          .limit(1000),
         supabase.from("groups").select("name, photo_url").eq("user_id", userId),
         supabase.from("events").select("id, name, event_date, event_time, contact_ids").eq("user_id", userId).gte("event_date", todayStr).order("event_date", { ascending: true }).limit(3),
       ]);
@@ -139,10 +144,54 @@ export default function DashboardPage() {
     return `${Math.floor(days/30)}mo ago`;
   };
 
+  const getReconnectMessage = (contact: Contact) => {
+    const firstName = contact.full_name.split(" ")[0] || contact.full_name;
+    if (!contact.last_contacted) {
+      return "Never logged an interaction";
+    }
+    const days = getDaysSince(contact.last_contacted);
+    let amount: number;
+    let unit: string;
+    if (days < 7) {
+      amount = days;
+      unit = amount === 1 ? "day" : "days";
+    } else if (days < 30) {
+      amount = Math.floor(days / 7);
+      unit = amount === 1 ? "week" : "weeks";
+    } else if (days < 365) {
+      amount = Math.floor(days / 30);
+      unit = amount === 1 ? "month" : "months";
+    } else {
+      amount = Math.floor(days / 365);
+      unit = amount === 1 ? "year" : "years";
+    }
+    return `Haven't seen ${firstName} in ${amount} ${unit}`;
+  };
+
   const needsAttention = contacts
-    .filter(c => getDaysSince(c.last_contacted) > 21)
-    .sort((a, b) => getDaysSince(b.last_contacted) - getDaysSince(a.last_contacted))
-    .slice(0, 3);
+    .map(contact => {
+      const hasLast = !!contact.last_contacted;
+      const days = hasLast ? getDaysSince(contact.last_contacted) : null;
+
+      const shouldNudge = !hasLast || (days !== null && days > 30);
+
+      // For sorting:
+      // - Never contacted first (isNever = true)
+      // - Then by days since last contact, descending
+      const isNever = !hasLast || days === null;
+      const daysSince = days ?? 0;
+
+      return { contact, shouldNudge, isNever, daysSince };
+    })
+    .filter(x => x.shouldNudge)
+    .sort((a, b) => {
+      if (a.isNever !== b.isNever) {
+        return a.isNever ? -1 : 1;
+      }
+      return b.daysSince - a.daysSince;
+    })
+    .slice(0, 5)
+    .map(x => x.contact);
 
   if (loading) return (
     <main className="min-h-screen bg-[#141210] flex items-center justify-center">
@@ -329,7 +378,9 @@ export default function DashboardPage() {
                   )}
                   <div className="flex-1">
                     <div className="font-medium text-sm text-[#F0E6D3]">{contact.full_name}</div>
-                    <div className="text-xs text-[#7A7068]">Last seen {getLastSeen(contact.last_contacted)}</div>
+                    <div className="text-xs text-[#7A7068]">
+                      {getReconnectMessage(contact)}
+                    </div>
                   </div>
                 </div>
               ))}

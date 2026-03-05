@@ -561,8 +561,10 @@ export default function ContactProfilePage({ params }: { params: Promise<{ id: s
         </div>
 
         {/* Log interaction button */}
-        <button onClick={openLogModal}
-          className="w-full py-3 border border-[#C8A96E] text-[#C8A96E] rounded-xl text-sm font-semibold hover:bg-[#28211A] transition-colors">
+        <button
+          onClick={openLogModal}
+          className="w-full py-3 border border-[#C8A96E] text-[#C8A96E] rounded-xl text-sm font-semibold hover:bg-[#28211A] transition-colors"
+        >
           Log a hangout
         </button>
 

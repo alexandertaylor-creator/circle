@@ -311,7 +311,6 @@ export default function NewContactPage() {
           <label className="text-xs text-[#7A7068] mb-2 block font-medium">First name</label>
           <input
             type="text"
-            placeholder="e.g. Alex"
             value={firstName}
             onChange={e => setFirstName(e.target.value)}
             autoFocus
@@ -322,7 +321,6 @@ export default function NewContactPage() {
           <label className="text-xs text-[#7A7068] mb-2 block font-medium">Last name</label>
           <input
             type="text"
-            placeholder="e.g. Smith"
             value={lastName}
             onChange={e => setLastName(e.target.value)}
             className="w-full bg-[#1C1916] border border-[#2E2924] rounded-xl px-4 py-3 text-base text-[#F0E6D3] placeholder-[#7A7068] outline-none focus:border-[#C8A96E] transition-colors font-medium"
